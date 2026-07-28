@@ -41,11 +41,11 @@ export const Route = createFileRoute("/")({
         content:
           "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele.",
       },
-      { property: "og:title", content: "Yapay Zekâ Hayat Simülatörü" },
+      { property: "og:title", content: "Yapay Zekâ Hayat Simülatörü — Her Seçim Yeni Bir Hayat" },
       {
         property: "og:description",
         content:
-          "Yapay zekâ hayatını anlatır. Seçim yap, mutluluk, servet, kariyer ve stresin anında değişsin.",
+          "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
