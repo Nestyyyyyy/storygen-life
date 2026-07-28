@@ -12,7 +12,13 @@ import {
   Target,
   RotateCcw,
   Wand2,
+  Lock,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
+
 import { StatBar } from "@/components/StatBar";
 import {
   generateLifeEvent,
@@ -46,6 +52,17 @@ export const Route = createFileRoute("/")({
 const START_STATS: LifeStats = { happiness: 60, wealth: 40, career: 45, stress: 30 };
 
 type Entry = { turn: LifeTurn; chosen?: string };
+
+const OUTCOME: Record<
+  LifeTurn["outcome"],
+  { label: string; color: string; Icon: typeof TrendingUp }
+> = {
+  success: { label: "Başarı", color: "var(--wealth)", Icon: TrendingUp },
+  partial: { label: "Yarım başarı", color: "var(--happiness)", Icon: Minus },
+  failure: { label: "Başarısızlık", color: "var(--stress)", Icon: TrendingDown },
+  neutral: { label: "Başlangıç", color: "var(--color-primary)", Icon: Sparkles },
+};
+
 
 function Index() {
   const generate = useServerFn(generateLifeEvent);
@@ -223,63 +240,114 @@ function Index() {
             </section>
           ) : (
             <div className="space-y-4">
-              {entries.map((entry, i) => (
-                <article
-                  key={i}
-                  className={`panel animate-fade-in p-5 sm:p-6 ${i === entries.length - 1 ? "glow" : "opacity-80"}`}
-                >
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span className="rounded-full bg-secondary px-2.5 py-1 font-medium text-foreground">
-                      {entry.turn.age} yaşında
-                    </span>
-                    <span className="h-px flex-1 bg-border" />
-                  </div>
-                  <h2 className="mt-3 text-xl font-bold">{entry.turn.title}</h2>
-                  <p className="mt-2 leading-relaxed text-muted-foreground">{entry.turn.narrative}</p>
-
-                  {entry.chosen ? (
-                    <p className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary">
-                      Seçimin: {entry.chosen}
-                    </p>
-                  ) : (
-                    <div className="mt-5 space-y-2.5">
-                      {entry.turn.choices.map((c, j) => (
-                        <button
-                          key={j}
-                          disabled={loading}
-                          onClick={() => choose(c.label)}
-                          className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 px-4 py-3 text-left text-sm transition-all hover:border-primary/50 hover:bg-secondary disabled:opacity-50"
+              {entries.map((entry, i) => {
+                const last = i === entries.length - 1;
+                const tone = OUTCOME[entry.turn.outcome];
+                return (
+                  <article
+                    key={i}
+                    className={`panel animate-fade-in relative overflow-hidden p-5 sm:p-6 ${last ? "glow" : "opacity-75"}`}
+                  >
+                    <span
+                      className="absolute inset-y-0 left-0 w-1"
+                      style={{ background: tone.color }}
+                      aria-hidden
+                    />
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <span className="rounded-full bg-secondary px-2.5 py-1 font-medium text-foreground">
+                        {entry.turn.age} yaşında
+                      </span>
+                      {entry.turn.outcome !== "neutral" && (
+                        <span
+                          className="flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                          style={{
+                            color: tone.color,
+                            background: `color-mix(in oklab, ${tone.color} 15%, transparent)`,
+                          }}
                         >
-                          <span>{c.label}</span>
-                          {c.recommended && (
-                            <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-semibold text-primary">
-                              <Wand2 className="size-3" /> YZ önerisi
-                            </span>
-                          )}
-                        </button>
-                      ))}
-
-                      <div className="flex gap-2 pt-2">
-                        <input
-                          value={custom}
-                          onChange={(e) => setCustom(e.target.value)}
-                          onKeyDown={(e) => e.key === "Enter" && choose(custom)}
-                          placeholder="Ya da tamamen başka bir şey yap…"
-                          className="field flex-1"
-                          disabled={loading}
-                        />
-                        <button
-                          onClick={() => choose(custom)}
-                          disabled={loading || !custom.trim()}
-                          className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-40"
-                        >
-                          <Send className="size-4" />
-                        </button>
-                      </div>
+                          <tone.Icon className="size-3" /> {tone.label}
+                        </span>
+                      )}
+                      {entry.turn.kind === "forced" && (
+                        <span className="flex items-center gap-1 rounded-full bg-destructive/15 px-2.5 py-1 text-[11px] font-semibold text-destructive">
+                          <Lock className="size-3" /> Seçim sende değil
+                        </span>
+                      )}
+                      <span className="h-px flex-1 bg-border" />
                     </div>
-                  )}
-                </article>
-              ))}
+
+                    {entry.turn.outcomeText && (
+                      <p
+                        className="mt-3 border-l-2 pl-3 text-sm italic"
+                        style={{ borderColor: tone.color, color: tone.color }}
+                      >
+                        {entry.turn.outcomeText}
+                      </p>
+                    )}
+
+                    <h2 className="mt-3 text-xl font-bold">{entry.turn.title}</h2>
+                    <p className="mt-2 leading-relaxed text-muted-foreground">
+                      {entry.turn.narrative}
+                    </p>
+
+                    {entry.chosen ? (
+                      <p className="mt-4 rounded-xl border border-primary/25 bg-primary/10 px-4 py-2 text-sm text-primary">
+                        Seçimin: {entry.chosen}
+                      </p>
+                    ) : entry.turn.kind === "forced" ? (
+                      <button
+                        disabled={loading}
+                        onClick={() => choose(entry.turn.choices[0].label)}
+                        className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 py-3 text-sm font-semibold text-destructive transition-colors hover:bg-destructive/20 disabled:opacity-50"
+                      >
+                        {entry.turn.choices[0].label}
+                        <ChevronRight className="size-4" />
+                      </button>
+                    ) : (
+                      <div className="mt-5 space-y-2.5">
+                        {entry.turn.choices.map((c, j) => (
+                          <button
+                            key={j}
+                            disabled={loading}
+                            onClick={() => choose(c.label)}
+                            className="group flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-secondary/40 px-4 py-3 text-left text-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:bg-secondary disabled:opacity-50"
+                          >
+                            <span className="flex items-center gap-3">
+                              <span className="grid size-6 shrink-0 place-items-center rounded-md bg-background/60 text-[11px] font-bold text-muted-foreground">
+                                {j + 1}
+                              </span>
+                              {c.label}
+                            </span>
+                            {c.recommended && (
+                              <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-semibold text-primary">
+                                <Wand2 className="size-3" /> YZ önerisi
+                              </span>
+                            )}
+                          </button>
+                        ))}
+
+                        <div className="flex gap-2 pt-2">
+                          <input
+                            value={custom}
+                            onChange={(e) => setCustom(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && choose(custom)}
+                            placeholder="Ya da tamamen başka bir şey yap…"
+                            className="field flex-1"
+                            disabled={loading}
+                          />
+                          <button
+                            onClick={() => choose(custom)}
+                            disabled={loading || !custom.trim()}
+                            className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-40"
+                          >
+                            <Send className="size-4" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
 
               {loading && (
                 <div className="panel flex items-center gap-3 p-5 text-sm text-muted-foreground">
@@ -291,6 +359,7 @@ function Index() {
                 <div className="panel border-destructive/40 p-5 text-sm text-destructive">{error}</div>
               )}
             </div>
+
           )}
         </main>
       </div>
