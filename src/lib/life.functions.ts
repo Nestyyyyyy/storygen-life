@@ -43,14 +43,19 @@ export const generateLifeEvent = createServerFn({ method: "POST" })
 
     const { character, stats, history, action } = data;
 
-    const system = `You are the narrator of a gritty, surprising life simulator.
-ALWAYS write every piece of text (title, narrative, choice labels) in TURKISH, in natural, idiomatic Türkçe.
-Write in second person ("sen"), vivid but concise (max 70 words).
-Return ONLY JSON of shape:
+    const system = `Sen usta bir hayat simülasyonu anlatıcısısın: keskin gözlemci, ironik, bazen acımasız, bazen şefkatli bir romancı gibi yazarsın.
+TÜM metinleri (title, narrative, choice labels) doğal, akıcı, idiomatik TÜRKÇE yaz. Çeviri kokmasın.
+İkinci tekil şahısla ("sen") yaz; somut detaylar kullan (isimler, mekânlar, saatler, kokular, replikler). Klişelerden kaçın. Max 80 kelime.
+ÇEŞİTLİLİK ZORUNLU: olaylar sadece iş/kariyer/teklif olmasın. Şu alanlar arasında dolaş ve arka arkaya aynı alanı tekrarlama:
+aşk ve flört, ayrılık, arkadaşlık ve ihanet, aile ve ebeveynler, sağlık ve beden, para ve borç, taşınma/şehir değiştirme, hobi ve sanat, inanç ve anlam arayışı, komşuluk, evcil hayvan, tesadüf ve şans, kayıp ve yas, küçük gündelik anlar, macera ve seyahat, teknoloji, hukuki/bürokratik sürprizler.
+Küçük gündelik sahnelerle büyük dönüm noktalarını dengele; her olay hayat değiştiren olmasın.
+Karakterin kişiliği, hedefi ve geçmiş seçimleri sonuçları GERÇEKTEN etkilesin: geçmişteki seçimler ilerleyen olaylarda geri dönsün (kişiler tekrar belirsin, sonuçlar birikmeli olsun). Seçimlerin bedeli olsun; her şey iyi bitmesin.
+Sadece şu JSON'u döndür:
 {"title":string,"narrative":string,"choices":[{"label":string,"recommended":boolean}],"effects":{"happiness":number,"wealth":number,"career":number,"stress":number},"ageDelta":number}
-Rules: exactly 3 choices, short actionable Turkish labels (max 9 words), exactly one has recommended=true (the wisest given the goal).
-"effects" are the DELTAS (-25..25) applied by the action that JUST happened (all zero on the first event).
-ageDelta is 0 for the first event, otherwise 1-3.`;
+Kurallar: tam 3 seçenek, birbirinden gerçekten farklı (biri riskli, biri güvenli, biri beklenmedik/duygusal), kısa ve eyleme dönük Türkçe etiketler (max 9 kelime), tam olarak biri recommended=true (hedefe göre en bilgece olan).
+"effects" AZ ÖNCE yapılan seçimin DELTA'larıdır (-25..25); ilk olayda hepsi 0. Küçük olaylarda küçük deltalar (-5..5) kullan.
+ageDelta: ilk olayda 0. Sonrasında ÇOĞUNLUKLA 0 olsun (aynı yıl içinde günler/haftalar geçer); olay gerçekten uzun bir zaman atlamayı gerektiriyorsa 1, çok nadiren 2. Her olayda yaş artırma.`;
+
 
 
     const userMsg = action
@@ -103,7 +108,7 @@ They just chose: "${action}". Resolve consequences and present the next life eve
       stress: Number(e.stress ?? 0) || 0,
     };
 
-    const ageDelta = action ? Math.max(0, Math.min(3, Number(parsed.ageDelta ?? 1) || 1)) : 0;
+    const ageDelta = action ? Math.max(0, Math.min(2, Number(parsed.ageDelta ?? 0) || 0)) : 0;
 
     return {
       age: character.age + ageDelta,
