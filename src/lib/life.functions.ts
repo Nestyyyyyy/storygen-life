@@ -101,7 +101,7 @@ Bu seçimin sonuçlarını inandırıcı biçimde işle ve SIRADAKİ olayı yaz.
       const o = c as { label?: string; recommended?: boolean };
       return { label: String(o.label ?? "Beklemeye devam et"), recommended: Boolean(o.recommended) };
     });
-    while (choices.length < 3) choices.push({ label: "Wait and see what happens", recommended: false });
+    while (choices.length < 3) choices.push({ label: "Ne olacağını bekle ve gör", recommended: false });
     if (!choices.some((c) => c.recommended)) choices[0].recommended = true;
 
     const e = (parsed.effects ?? {}) as Record<string, number>;
