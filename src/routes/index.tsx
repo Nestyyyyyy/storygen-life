@@ -24,17 +24,17 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AI Life Simulator — Live a Whole Life, One Choice at a Time" },
+      { title: "Yapay Zekâ Hayat Simülatörü — Her Seçim Yeni Bir Hayat" },
       {
         name: "description",
         content:
-          "Create a character and let an AI narrator generate your life story. Balance happiness, wealth, career and stress through branching choices.",
+          "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele.",
       },
-      { property: "og:title", content: "AI Life Simulator" },
+      { property: "og:title", content: "Yapay Zekâ Hayat Simülatörü" },
       {
         property: "og:description",
         content:
-          "An AI narrates your life. Make choices, watch your happiness, wealth, career and stress shift in real time.",
+          "Yapay zekâ hayatını anlatır. Seçim yap, mutluluk, servet, kariyer ve stresin anında değişsin.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -86,7 +86,7 @@ function Index() {
       setAge(turn.age);
       setEntries((prev) => [...prev, { turn }]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong.");
+      setError(e instanceof Error ? e.message : "Bir şeyler ters gitti.");
     } finally {
       setLoading(false);
     }
@@ -97,8 +97,8 @@ function Index() {
     const char: Character = {
       age: Number(form.age) || 24,
       occupation: form.occupation.trim() || "Barista",
-      personality: form.personality.trim() || "Curious",
-      goal: form.goal.trim() || "Find meaning",
+      personality: form.personality.trim() || "Meraklı",
+      goal: form.goal.trim() || "Anlam bulmak",
     };
     setCharacter(char);
     setAge(char.age);
@@ -134,8 +134,8 @@ function Index() {
               <Sparkles className="size-5" />
             </div>
             <div>
-              <h1 className="text-lg leading-tight font-bold">AI Life Simulator</h1>
-              <p className="text-xs text-muted-foreground">Narrated by AI</p>
+              <h1 className="text-lg leading-tight font-bold">Hayat Simülatörü</h1>
+              <p className="text-xs text-muted-foreground">Yapay zekâ anlatıcı</p>
             </div>
           </div>
 
@@ -143,7 +143,7 @@ function Index() {
             <div className="mb-6 rounded-xl border border-border bg-secondary/40 p-4">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm font-semibold">{character.occupation}</span>
-                <span className="text-xs text-muted-foreground">Age {age}</span>
+                <span className="text-xs text-muted-foreground">{age} yaşında</span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{character.personality}</p>
               <p className="mt-3 flex items-start gap-2 text-xs text-primary">
@@ -154,10 +154,10 @@ function Index() {
           )}
 
           <div className="space-y-5">
-            <StatBar label="Happiness" value={stats.happiness} icon={Smile} color="var(--happiness)" delta={deltas.happiness} />
-            <StatBar label="Wealth" value={stats.wealth} icon={Coins} color="var(--wealth)" delta={deltas.wealth} />
-            <StatBar label="Career" value={stats.career} icon={Briefcase} color="var(--career)" delta={deltas.career} />
-            <StatBar label="Stress" value={stats.stress} icon={Activity} color="var(--stress)" delta={deltas.stress} />
+            <StatBar label="Mutluluk" value={stats.happiness} icon={Smile} color="var(--happiness)" delta={deltas.happiness} />
+            <StatBar label="Servet" value={stats.wealth} icon={Coins} color="var(--wealth)" delta={deltas.wealth} />
+            <StatBar label="Kariyer" value={stats.career} icon={Briefcase} color="var(--career)" delta={deltas.career} />
+            <StatBar label="Stres" value={stats.stress} icon={Activity} color="var(--stress)" delta={deltas.stress} />
           </div>
 
           {character && (
@@ -165,7 +165,7 @@ function Index() {
               onClick={reset}
               className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-border py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary"
             >
-              <RotateCcw className="size-4" /> New life
+              <RotateCcw className="size-4" /> Yeni hayat
             </button>
           )}
         </aside>
@@ -174,12 +174,12 @@ function Index() {
         <main className="min-w-0 flex-1">
           {!character ? (
             <section className="panel glow p-6 sm:p-10" style={{ backgroundImage: "var(--gradient-hero)" }}>
-              <h2 className="text-3xl font-bold sm:text-4xl">Who are you, this time?</h2>
+              <h2 className="text-3xl font-bold sm:text-4xl">Bu sefer kimsin?</h2>
               <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-                Shape a character and the AI narrator will write your life, one decision at a time.
+                Bir karakter oluştur; yapay zekâ anlatıcı hayatını karar kararlar yazsın.
               </p>
               <form onSubmit={start} className="mt-8 grid gap-4 sm:grid-cols-2">
-                <Field label="Age">
+                <Field label="Yaş">
                   <input
                     type="number"
                     min={5}
@@ -189,27 +189,27 @@ function Index() {
                     className="field"
                   />
                 </Field>
-                <Field label="Occupation">
+                <Field label="Meslek">
                   <input
                     value={form.occupation}
                     onChange={(e) => setForm({ ...form, occupation: e.target.value })}
-                    placeholder="Junior architect"
+                    placeholder="Genç mimar"
                     className="field"
                   />
                 </Field>
-                <Field label="Personality">
+                <Field label="Kişilik">
                   <input
                     value={form.personality}
                     onChange={(e) => setForm({ ...form, personality: e.target.value })}
-                    placeholder="Reckless, warm, stubborn"
+                    placeholder="Cesur, sıcakkanlı, inatçı"
                     className="field"
                   />
                 </Field>
-                <Field label="Ultimate goal">
+                <Field label="Nihai hedef">
                   <input
                     value={form.goal}
                     onChange={(e) => setForm({ ...form, goal: e.target.value })}
-                    placeholder="Build a house by the sea"
+                    placeholder="Deniz kenarında bir ev"
                     className="field"
                   />
                 </Field>
@@ -217,7 +217,7 @@ function Index() {
                   type="submit"
                   className="sm:col-span-2 mt-2 flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-transform hover:scale-[1.01]"
                 >
-                  <Sparkles className="size-4" /> Begin life
+                  <Sparkles className="size-4" /> Hayata başla
                 </button>
               </form>
             </section>
@@ -230,7 +230,7 @@ function Index() {
                 >
                   <div className="flex items-center gap-3 text-xs text-muted-foreground">
                     <span className="rounded-full bg-secondary px-2.5 py-1 font-medium text-foreground">
-                      Age {entry.turn.age}
+                      {entry.turn.age} yaşında
                     </span>
                     <span className="h-px flex-1 bg-border" />
                   </div>
@@ -239,7 +239,7 @@ function Index() {
 
                   {entry.chosen ? (
                     <p className="mt-4 rounded-xl border border-primary/30 bg-primary/10 px-4 py-2 text-sm text-primary">
-                      You chose: {entry.chosen}
+                      Seçimin: {entry.chosen}
                     </p>
                   ) : (
                     <div className="mt-5 space-y-2.5">
@@ -253,7 +253,7 @@ function Index() {
                           <span>{c.label}</span>
                           {c.recommended && (
                             <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-semibold text-primary">
-                              <Wand2 className="size-3" /> AI pick
+                              <Wand2 className="size-3" /> YZ önerisi
                             </span>
                           )}
                         </button>
@@ -264,7 +264,7 @@ function Index() {
                           value={custom}
                           onChange={(e) => setCustom(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && choose(custom)}
-                          placeholder="Or do something else entirely…"
+                          placeholder="Ya da tamamen başka bir şey yap…"
                           className="field flex-1"
                           disabled={loading}
                         />
@@ -284,7 +284,7 @@ function Index() {
               {loading && (
                 <div className="panel flex items-center gap-3 p-5 text-sm text-muted-foreground">
                   <Loader2 className="size-4 animate-spin text-primary" />
-                  The narrator is writing what happens next…
+                  Anlatıcı sıradaki olayı yazıyor…
                 </div>
               )}
               {error && (
