@@ -77,13 +77,15 @@ Bu seçimin sonuçlarını inandırıcı biçimde işle ve SIRADAKİ olayı yaz.
         Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-3.6-flash",
+        model: "google/gemini-3.1-pro-preview",
+        temperature: 1,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: system },
           { role: "user", content: userMsg },
         ],
       }),
+
     });
 
     if (res.status === 429) throw new Error("Rate limit reached. Please try again in a moment.");
