@@ -59,14 +59,16 @@ ageDelta: ilk olayda 0. Sonrasında ÇOĞUNLUKLA 0 olsun (aynı yıl içinde gü
 
 
     const userMsg = action
-      ? `Character: ${character.age}y ${character.occupation}, personality: ${character.personality}, ultimate goal: ${character.goal}.
-Current stats: ${JSON.stringify(stats)}.
-Recent life: ${history
-          .slice(-5)
-          .map((h) => `${h.event} -> ${h.choice}`)
+      ? `Karakter: ${character.age} yaşında ${character.occupation}, kişilik: ${character.personality}, nihai hedef: ${character.goal}.
+Güncel durum: ${JSON.stringify(stats)}.
+Hayat geçmişi (eskiden yeniye): ${history
+          .slice(-12)
+          .map((h, i) => `${i + 1}) ${h.event} -> ${h.choice}`)
           .join(" | ")}
-They just chose: "${action}". Resolve consequences and present the next life event.`
-      : `Create the opening life event for: ${character.age}y ${character.occupation}, personality: ${character.personality}, ultimate goal: ${character.goal}. All effects zero, ageDelta 0.`;
+Az önce şunu seçti: "${action}".
+Bu seçimin sonuçlarını inandırıcı biçimde işle ve SIRADAKİ olayı yaz. Geçmişte geçen kişileri/konuları hatırla ve gerektiğinde geri getir. Son olayların alanını tekrarlama; farklı bir hayat alanına geç (aşk, arkadaşlık, aile, sağlık, para, tesadüf...).`
+      : `Şu karakter için açılış olayını yaz: ${character.age} yaşında ${character.occupation}, kişilik: ${character.personality}, nihai hedef: ${character.goal}. Kariyerle değil, kişisel/duygusal bir anla başla. Tüm effects 0, ageDelta 0.`;
+
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
