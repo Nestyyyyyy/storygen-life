@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { askAi, clamp, FIELD_TR } from "./life.server";
+
 const StatsSchema = z.object({
   happiness: z.number(),
   wealth: z.number(),
@@ -10,6 +12,7 @@ const StatsSchema = z.object({
 
 const CharacterSchema = z.object({
   age: z.number(),
+  gender: z.string(),
   occupation: z.string(),
   personality: z.string(),
   goal: z.string(),
@@ -22,6 +25,20 @@ const InputSchema = z.object({
   action: z.string().optional(),
 });
 
+const SuggestSchema = z.object({
+  field: z.enum(["occupation", "personality", "goal"]),
+  hint: z.string().max(200).optional(),
+  context: z
+    .object({
+      age: z.number().optional(),
+      gender: z.string().optional(),
+      occupation: z.string().optional(),
+      personality: z.string().optional(),
+      goal: z.string().optional(),
+    })
+    .optional(),
+});
+
 export type LifeStats = z.infer<typeof StatsSchema>;
 export type Character = z.infer<typeof CharacterSchema>;
 
@@ -31,24 +48,82 @@ export type LifeTurn = {
   narrative: string;
   choices: { label: string; recommended: boolean }[];
   effects: LifeStats;
+  delta: LifeStats;
   outcome: "success" | "partial" | "failure" | "neutral";
   outcomeText: string;
   kind: "choice" | "forced";
 };
 
-const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+export type FieldIssues = Partial<Record<"occupation" | "personality" | "goal", string>>;
 
+export const suggestField = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => SuggestSchema.parse(input))
+  .handler(async ({ data }): Promise<{ value: string }> => {
+    const { field, hint, context } = data;
+    const system = `Sen bir karakter yaratma asistanısın. TÜRKÇE, kısa ve somut yaz.
+Sadece şu JSON'u döndür: {"value": string}
+- occupation: gerçek bir meslek/uğraş (max 4 kelime). Örn: "gece vardiyası hemşiresi".
+- personality: 3 sıfat, virgülle (max 5 kelime).
+- goal: tek cümlelik samimi bir hayat hedefi (max 9 kelime).
+Klişe olmasın, her seferinde farklı ve yaratıcı bir şey üret.`;
+    const user = `İstenen alan: ${FIELD_TR[field]}.
+Karakter bilgisi: yaş ${context?.age ?? "?"}, cinsiyet ${context?.gender ?? "?"}, meslek ${context?.occupation || "?"}, kişilik ${context?.personality || "?"}, hedef ${context?.goal || "?"}.
+${hint ? `Kullanıcının isteği: "${hint}". Buna uygun bir öneri üret.` : "Serbest, sürpriz bir öneri üret."}`;
+
+    const parsed = await askAi(system, user, 1.15);
+    return { value: String(parsed.value ?? "").trim().slice(0, 80) };
+  });
+
+export const validateCharacter = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        occupation: z.string(),
+        personality: z.string(),
+        goal: z.string(),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean; issues: FieldIssues }> => {
+    const issues: FieldIssues = {};
+    const gibberish = (s: string) =>
+      s.length < 2 ||
+      /^(.)\1+$/i.test(s.replace(/\s/g, "")) ||
+      !/[a-zçğıöşü]/i.test(s) ||
+      !/[aeıioöuüAEIİOÖUÜ]/.test(s);
+
+    (["occupation", "personality", "goal"] as const).forEach((f) => {
+      const v = data[f].trim();
+      if (!v) issues[f] = "Bu alanı doldur.";
+      else if (gibberish(v)) issues[f] = "Bu anlamlı bir şey değil, gerçek bir şey yaz.";
+    });
+    if (Object.keys(issues).length) return { ok: false, issues };
+
+    const system = `Sen bir giriş doğrulayıcısısın. Kullanıcının karakter alanlarını kontrol et.
+Bir alan anlamsız (klavye karalaması, rastgele harfler, saçma tekrar, alanla alakasız) ise reddet.
+Yaratıcı ama anlamlı girdileri KABUL ET. Küfür/nefret içerenleri reddet.
+Sadece şu JSON'u döndür: {"occupation":{"ok":boolean,"reason":string},"personality":{"ok":boolean,"reason":string},"goal":{"ok":boolean,"reason":string}}
+reason: ok=false ise kısa, nazik, TÜRKÇE bir açıklama; ok=true ise boş string.`;
+    const user = `meslek: "${data.occupation}"
+kişilik: "${data.personality}"
+nihai hedef: "${data.goal}"`;
+
+    const parsed = await askAi(system, user, 0);
+    (["occupation", "personality", "goal"] as const).forEach((f) => {
+      const r = parsed[f] as { ok?: boolean; reason?: string } | undefined;
+      if (r && r.ok === false) issues[f] = String(r.reason || "Bu geçerli bir cevap değil.");
+    });
+
+    return { ok: Object.keys(issues).length === 0, issues };
+  });
 
 export const generateLifeEvent = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<LifeTurn> => {
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-
     const { character, stats, history, action } = data;
 
     // --- Kader zarı: sonucu model değil, sunucu belirler ---
-    const luck = (stats.happiness + stats.wealth + stats.career - stats.stress * 1.4) / 400; // ~ -0.35..0.75
+    const luck = (stats.happiness + stats.wealth + stats.career - stats.stress * 1.4) / 400;
     const roll = Math.random() + luck * 0.25;
     let outcome: LifeTurn["outcome"] = "neutral";
     if (action) {
@@ -73,6 +148,7 @@ export const generateLifeEvent = createServerFn({ method: "POST" })
 
     const system = `Sen usta bir hayat simülasyonu anlatıcısısın: keskin gözlemci, ironik, bazen acımasız, bazen şefkatli bir romancı gibi yazarsın.
 TÜM metinleri doğal, akıcı, idiomatik TÜRKÇE yaz. İkinci tekil şahısla ("sen"); somut detaylar (isimler, mekânlar, saatler, replikler). Klişe yok. Max 85 kelime.
+Karakterin cinsiyetine uygun hitap, ilişki ve toplumsal detaylar kur.
 ÇEŞİTLİLİK ZORUNLU: sadece iş/kariyer olmasın. Alanlar arasında dolaş, arka arkaya aynı alanı tekrarlama: aşk, ayrılık, arkadaşlık ve ihanet, aile, sağlık, para ve borç, taşınma, hobi ve sanat, inanç, komşuluk, evcil hayvan, tesadüf, kayıp ve yas, küçük gündelik anlar, seyahat, teknoloji, hukuki sürprizler.
 HAYAT ADİL DEĞİL: hikâye sürekli yükselmesin. Sık sık geri tepme, pişmanlık, kayıp ve tökezleme olsun. "İyi seçim" bile bazen kötü sonuçlansın.
 Geçmiş seçimler birikmeli sonuç doğursun; eski kişiler geri dönsün.
@@ -84,8 +160,10 @@ Seçenek etiketleri kısa ve eyleme dönük (max 9 kelime), biri riskli / biri g
 "effects" AZ ÖNCEKİ seçimin DELTA'larıdır (-25..25); ilk olayda hepsi 0. Küçük olaylarda -5..5.
 ageDelta: ilk olayda 0; sonra ÇOĞUNLUKLA 0, gerekiyorsa 1, çok nadiren 2.`;
 
+    const who = `${character.age} yaşında ${character.gender} ${character.occupation}, kişilik: ${character.personality}, nihai hedef: ${character.goal}`;
+
     const userMsg = action
-      ? `Karakter: ${character.age} yaşında ${character.occupation}, kişilik: ${character.personality}, nihai hedef: ${character.goal}.
+      ? `Karakter: ${who}.
 Güncel durum: ${JSON.stringify(stats)}.
 Hayat geçmişi (eskiden yeniye): ${history
           .slice(-12)
@@ -95,32 +173,9 @@ Az önce şunu seçti: "${action}".
 ${outcomeRule}
 ${shapeRule}
 Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
-      : `Şu karakter için açılış olayını yaz: ${character.age} yaşında ${character.occupation}, kişilik: ${character.personality}, nihai hedef: ${character.goal}. Kariyerle değil, kişisel/duygusal bir anla başla. outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
+      : `Şu karakter için açılış olayını yaz: ${who}. Kariyerle değil, kişisel/duygusal bir anla başla. outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3.1-pro-preview",
-        temperature: 1,
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userMsg },
-        ],
-      }),
-    });
-
-    if (res.status === 429) throw new Error("Rate limit reached. Please try again in a moment.");
-    if (res.status === 402) throw new Error("AI credits exhausted. Add credits to continue.");
-    if (!res.ok) throw new Error(`AI request failed (${res.status})`);
-
-    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const raw = json.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(raw.replace(/^```json\s*|```$/g, "")) as Record<string, unknown>;
+    const parsed = await askAi(system, userMsg, 1);
 
     const kind: LifeTurn["kind"] = forced ? "forced" : "choice";
     const limit = forced ? 1 : 3;
@@ -141,7 +196,6 @@ Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
       stress: Number(e.stress ?? 0) || 0,
     };
 
-    // Model iyimserlik yapıp zarı yok sayarsa sonucu zorla
     const net = eff.happiness + eff.wealth + eff.career - eff.stress;
     if (outcome === "failure" && net >= 0) {
       eff = {
@@ -161,6 +215,13 @@ Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
 
     const ageDelta = action ? Math.max(0, Math.min(2, Number(parsed.ageDelta ?? 0) || 0)) : 0;
 
+    const effects: LifeStats = {
+      happiness: clamp(stats.happiness + eff.happiness),
+      wealth: clamp(stats.wealth + eff.wealth),
+      career: clamp(stats.career + eff.career),
+      stress: clamp(stats.stress + eff.stress),
+    };
+
     return {
       age: character.age + ageDelta,
       title: String(parsed.title ?? "Yeni bir bölüm"),
@@ -169,12 +230,12 @@ Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
       outcome,
       kind,
       choices,
-      effects: {
-        happiness: clamp(stats.happiness + eff.happiness),
-        wealth: clamp(stats.wealth + eff.wealth),
-        career: clamp(stats.career + eff.career),
-        stress: clamp(stats.stress + eff.stress),
+      effects,
+      delta: {
+        happiness: effects.happiness - stats.happiness,
+        wealth: effects.wealth - stats.wealth,
+        career: effects.career - stats.career,
+        stress: effects.stress - stats.stress,
       },
     };
   });
-
