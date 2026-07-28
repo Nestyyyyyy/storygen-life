@@ -44,12 +44,14 @@ export const generateLifeEvent = createServerFn({ method: "POST" })
     const { character, stats, history, action } = data;
 
     const system = `You are the narrator of a gritty, surprising life simulator.
-Write in second person, vivid but concise (max 70 words).
+ALWAYS write every piece of text (title, narrative, choice labels) in TURKISH, in natural, idiomatic Türkçe.
+Write in second person ("sen"), vivid but concise (max 70 words).
 Return ONLY JSON of shape:
 {"title":string,"narrative":string,"choices":[{"label":string,"recommended":boolean}],"effects":{"happiness":number,"wealth":number,"career":number,"stress":number},"ageDelta":number}
-Rules: exactly 3 choices, short actionable labels (max 9 words), exactly one has recommended=true (the wisest given the goal).
+Rules: exactly 3 choices, short actionable Turkish labels (max 9 words), exactly one has recommended=true (the wisest given the goal).
 "effects" are the DELTAS (-25..25) applied by the action that JUST happened (all zero on the first event).
 ageDelta is 0 for the first event, otherwise 1-3.`;
+
 
     const userMsg = action
       ? `Character: ${character.age}y ${character.occupation}, personality: ${character.personality}, ultimate goal: ${character.goal}.
@@ -88,7 +90,7 @@ They just chose: "${action}". Resolve consequences and present the next life eve
     const choicesRaw = Array.isArray(parsed.choices) ? parsed.choices.slice(0, 3) : [];
     const choices = choicesRaw.map((c) => {
       const o = c as { label?: string; recommended?: boolean };
-      return { label: String(o.label ?? "Keep going"), recommended: Boolean(o.recommended) };
+      return { label: String(o.label ?? "Beklemeye devam et"), recommended: Boolean(o.recommended) };
     });
     while (choices.length < 3) choices.push({ label: "Wait and see what happens", recommended: false });
     if (!choices.some((c) => c.recommended)) choices[0].recommended = true;
@@ -105,7 +107,7 @@ They just chose: "${action}". Resolve consequences and present the next life eve
 
     return {
       age: character.age + ageDelta,
-      title: String(parsed.title ?? "A new chapter"),
+      title: String(parsed.title ?? "Yeni bir bölüm"),
       narrative: String(parsed.narrative ?? ""),
       choices,
       effects: {
