@@ -90,7 +90,7 @@ They just chose: "${action}". Resolve consequences and present the next life eve
     const choicesRaw = Array.isArray(parsed.choices) ? parsed.choices.slice(0, 3) : [];
     const choices = choicesRaw.map((c) => {
       const o = c as { label?: string; recommended?: boolean };
-      return { label: String(o.label ?? "Keep going"), recommended: Boolean(o.recommended) };
+      return { label: String(o.label ?? "Beklemeye devam et"), recommended: Boolean(o.recommended) };
     });
     while (choices.length < 3) choices.push({ label: "Wait and see what happens", recommended: false });
     if (!choices.some((c) => c.recommended)) choices[0].recommended = true;
@@ -107,7 +107,7 @@ They just chose: "${action}". Resolve consequences and present the next life eve
 
     return {
       age: character.age + ageDelta,
-      title: String(parsed.title ?? "A new chapter"),
+      title: String(parsed.title ?? "Yeni bir bölüm"),
       narrative: String(parsed.narrative ?? ""),
       choices,
       effects: {
