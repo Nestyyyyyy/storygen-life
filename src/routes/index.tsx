@@ -384,7 +384,9 @@ function Index() {
                       </p>
                     )}
 
-                    <DeltaChips delta={entry.turn.delta} stats={entry.turn.effects} />
+                    {entry.turn.outcome !== "neutral" && (
+                      <DeltaChips delta={entry.turn.delta} stats={entry.turn.effects} />
+                    )}
 
                     <h2 className="mt-4 text-xl font-bold">{entry.turn.title}</h2>
                     <p className="mt-2 leading-relaxed text-muted-foreground">
