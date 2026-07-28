@@ -20,9 +20,14 @@ import {
 } from "lucide-react";
 
 import { StatBar } from "@/components/StatBar";
+import { CharacterField } from "@/components/CharacterField";
+import { DeltaChips } from "@/components/DeltaChips";
 import {
   generateLifeEvent,
+  suggestField,
+  validateCharacter,
   type Character,
+  type FieldIssues,
   type LifeStats,
   type LifeTurn,
 } from "@/lib/life.functions";
@@ -51,6 +56,8 @@ export const Route = createFileRoute("/")({
 
 const START_STATS: LifeStats = { happiness: 60, wealth: 40, career: 45, stress: 30 };
 
+const GENDERS = ["Kadın", "Erkek", "Belirtmek istemiyorum"];
+
 type Entry = { turn: LifeTurn; chosen?: string };
 
 const OUTCOME: Record<
@@ -63,21 +70,29 @@ const OUTCOME: Record<
   neutral: { label: "Başlangıç", color: "var(--color-primary)", Icon: Sparkles },
 };
 
-
 function Index() {
   const generate = useServerFn(generateLifeEvent);
+  const suggest = useServerFn(suggestField);
+  const validate = useServerFn(validateCharacter);
+
   const [character, setCharacter] = useState<Character | null>(null);
   const [stats, setStats] = useState<LifeStats>(START_STATS);
   const [deltas, setDeltas] = useState<Partial<LifeStats>>({});
   const [entries, setEntries] = useState<Entry[]>([]);
   const [age, setAge] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
+  const [issues, setIssues] = useState<FieldIssues>({});
 
-  const [form, setForm] = useState({ age: "24", occupation: "", personality: "", goal: "" });
-
-  const current = entries[entries.length - 1];
+  const [form, setForm] = useState({
+    age: "24",
+    gender: GENDERS[0],
+    occupation: "",
+    personality: "",
+    goal: "",
+  });
 
   async function run(char: Character, base: LifeStats, action?: string) {
     setLoading(true);
@@ -93,12 +108,7 @@ function Index() {
           action,
         },
       });
-      setDeltas({
-        happiness: turn.effects.happiness - base.happiness,
-        wealth: turn.effects.wealth - base.wealth,
-        career: turn.effects.career - base.career,
-        stress: turn.effects.stress - base.stress,
-      });
+      setDeltas(turn.delta);
       setStats(turn.effects);
       setAge(turn.age);
       setEntries((prev) => [...prev, { turn }]);
@@ -109,19 +119,65 @@ function Index() {
     }
   }
 
-  function start(e: React.FormEvent) {
+  async function askSuggestion(
+    field: "occupation" | "personality" | "goal",
+    hint?: string,
+  ): Promise<string> {
+    try {
+      const res = await suggest({
+        data: {
+          field,
+          hint,
+          context: {
+            age: Number(form.age) || undefined,
+            gender: form.gender,
+            occupation: form.occupation,
+            personality: form.personality,
+            goal: form.goal,
+          },
+        },
+      });
+      setIssues((prev) => ({ ...prev, [field]: undefined }));
+      return res.value;
+    } catch {
+      setError("Öneri alınamadı, tekrar dene.");
+      return "";
+    }
+  }
+
+  async function start(e: React.FormEvent) {
     e.preventDefault();
-    const char: Character = {
-      age: Number(form.age) || 24,
-      occupation: form.occupation.trim() || "Barista",
-      personality: form.personality.trim() || "Meraklı",
-      goal: form.goal.trim() || "Anlam bulmak",
-    };
-    setCharacter(char);
-    setAge(char.age);
-    setStats(START_STATS);
-    setEntries([]);
-    void run(char, START_STATS);
+    if (checking || loading) return;
+    setChecking(true);
+    setError(null);
+    try {
+      const check = await validate({
+        data: {
+          occupation: form.occupation.trim(),
+          personality: form.personality.trim(),
+          goal: form.goal.trim(),
+        },
+      });
+      setIssues(check.issues);
+      if (!check.ok) return;
+
+      const char: Character = {
+        age: Number(form.age) || 24,
+        gender: form.gender,
+        occupation: form.occupation.trim(),
+        personality: form.personality.trim(),
+        goal: form.goal.trim(),
+      };
+      setCharacter(char);
+      setAge(char.age);
+      setStats(START_STATS);
+      setEntries([]);
+      void run(char, START_STATS);
+    } catch {
+      setError("Kontrol edilemedi, tekrar dene.");
+    } finally {
+      setChecking(false);
+    }
   }
 
   function choose(action: string) {
@@ -139,6 +195,7 @@ function Index() {
     setStats(START_STATS);
     setDeltas({});
     setError(null);
+    setIssues({});
   }
 
   return (
@@ -160,7 +217,9 @@ function Index() {
             <div className="mb-6 rounded-xl border border-border bg-secondary/40 p-4">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm font-semibold">{character.occupation}</span>
-                <span className="text-xs text-muted-foreground">{age} yaşında</span>
+                <span className="text-xs text-muted-foreground">
+                  {age} yaşında · {character.gender}
+                </span>
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{character.personality}</p>
               <p className="mt-3 flex items-start gap-2 text-xs text-primary">
@@ -193,10 +252,14 @@ function Index() {
             <section className="panel glow p-6 sm:p-10" style={{ backgroundImage: "var(--gradient-hero)" }}>
               <h2 className="text-3xl font-bold sm:text-4xl">Bu sefer kimsin?</h2>
               <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-                Bir karakter oluştur; yapay zekâ anlatıcı hayatını karar kararlar yazsın.
+                Kendin yaz ya da <Sparkles className="inline size-3.5 text-primary" /> düğmesine
+                basıp yapay zekâdan öneri al. Ne istediğini biliyorsan konuşma balonuna dokun.
               </p>
               <form onSubmit={start} className="mt-8 grid gap-4 sm:grid-cols-2">
-                <Field label="Yaş">
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Yaş
+                  </span>
                   <input
                     type="number"
                     min={5}
@@ -205,38 +268,74 @@ function Index() {
                     onChange={(e) => setForm({ ...form, age: e.target.value })}
                     className="field"
                   />
-                </Field>
-                <Field label="Meslek">
-                  <input
-                    value={form.occupation}
-                    onChange={(e) => setForm({ ...form, occupation: e.target.value })}
-                    placeholder="Genç mimar"
-                    className="field"
-                  />
-                </Field>
-                <Field label="Kişilik">
-                  <input
-                    value={form.personality}
-                    onChange={(e) => setForm({ ...form, personality: e.target.value })}
-                    placeholder="Cesur, sıcakkanlı, inatçı"
-                    className="field"
-                  />
-                </Field>
-                <Field label="Nihai hedef">
-                  <input
+                </label>
+
+                <div>
+                  <span className="mb-1.5 block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+                    Cinsiyet
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {GENDERS.map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setForm({ ...form, gender: g })}
+                        className={`rounded-xl border px-3 py-2 text-xs font-medium transition-colors ${
+                          form.gender === g
+                            ? "border-primary bg-primary/15 text-primary"
+                            : "border-border text-muted-foreground hover:bg-secondary"
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <CharacterField
+                  label="Meslek"
+                  value={form.occupation}
+                  onChange={(v) => setForm({ ...form, occupation: v })}
+                  error={issues.occupation}
+                  onSuggest={(h) => askSuggestion("occupation", h)}
+                  hintPlaceholder="Nasıl bir meslek istersin? Örn: denizle ilgili"
+                />
+                <CharacterField
+                  label="Kişilik"
+                  value={form.personality}
+                  onChange={(v) => setForm({ ...form, personality: v })}
+                  error={issues.personality}
+                  onSuggest={(h) => askSuggestion("personality", h)}
+                  hintPlaceholder="Nasıl bir kişilik istersin? Örn: biraz karanlık"
+                />
+                <div className="sm:col-span-2">
+                  <CharacterField
+                    label="Nihai hedef"
                     value={form.goal}
-                    onChange={(e) => setForm({ ...form, goal: e.target.value })}
-                    placeholder="Deniz kenarında bir ev"
-                    className="field"
+                    onChange={(v) => setForm({ ...form, goal: v })}
+                    error={issues.goal}
+                    onSuggest={(h) => askSuggestion("goal", h)}
+                    hintPlaceholder="Nasıl bir hedef istersin? Örn: ailemle barışmak"
                   />
-                </Field>
+                </div>
+
                 <button
                   type="submit"
-                  className="sm:col-span-2 mt-2 flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-transform hover:scale-[1.01]"
+                  disabled={checking}
+                  className="sm:col-span-2 mt-2 flex items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground transition-transform hover:scale-[1.01] disabled:opacity-60"
                 >
-                  <Sparkles className="size-4" /> Hayata başla
+                  {checking ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" /> Kontrol ediliyor…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="size-4" /> Hayata başla
+                    </>
+                  )}
                 </button>
               </form>
+              {error && <p className="mt-4 text-sm text-destructive">{error}</p>}
             </section>
           ) : (
             <div className="space-y-4">
@@ -285,7 +384,9 @@ function Index() {
                       </p>
                     )}
 
-                    <h2 className="mt-3 text-xl font-bold">{entry.turn.title}</h2>
+                    <DeltaChips delta={entry.turn.delta} stats={entry.turn.effects} />
+
+                    <h2 className="mt-4 text-xl font-bold">{entry.turn.title}</h2>
                     <p className="mt-2 leading-relaxed text-muted-foreground">
                       {entry.turn.narrative}
                     </p>
@@ -359,21 +460,9 @@ function Index() {
                 <div className="panel border-destructive/40 p-5 text-sm text-destructive">{error}</div>
               )}
             </div>
-
           )}
         </main>
       </div>
     </div>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="mb-1.5 block text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
-      {children}
-    </label>
   );
 }
