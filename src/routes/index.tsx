@@ -12,7 +12,13 @@ import {
   Target,
   RotateCcw,
   Wand2,
+  Lock,
+  ChevronRight,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from "lucide-react";
+
 import { StatBar } from "@/components/StatBar";
 import {
   generateLifeEvent,
