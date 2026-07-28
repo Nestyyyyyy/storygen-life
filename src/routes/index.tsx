@@ -53,6 +53,17 @@ const START_STATS: LifeStats = { happiness: 60, wealth: 40, career: 45, stress: 
 
 type Entry = { turn: LifeTurn; chosen?: string };
 
+const OUTCOME: Record<
+  LifeTurn["outcome"],
+  { label: string; color: string; Icon: typeof TrendingUp }
+> = {
+  success: { label: "Başarı", color: "var(--wealth)", Icon: TrendingUp },
+  partial: { label: "Yarım başarı", color: "var(--happiness)", Icon: Minus },
+  failure: { label: "Başarısızlık", color: "var(--stress)", Icon: TrendingDown },
+  neutral: { label: "Başlangıç", color: "var(--color-primary)", Icon: Sparkles },
+};
+
+
 function Index() {
   const generate = useServerFn(generateLifeEvent);
   const [character, setCharacter] = useState<Character | null>(null);
