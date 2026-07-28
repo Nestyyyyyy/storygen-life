@@ -31,9 +31,13 @@ export type LifeTurn = {
   narrative: string;
   choices: { label: string; recommended: boolean }[];
   effects: LifeStats;
+  outcome: "success" | "partial" | "failure" | "neutral";
+  outcomeText: string;
+  kind: "choice" | "forced";
 };
 
 const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
+
 
 export const generateLifeEvent = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
