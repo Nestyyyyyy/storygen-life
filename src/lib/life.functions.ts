@@ -62,6 +62,7 @@ export type LifeTurn = {
   outcome: "success" | "partial" | "failure" | "neutral";
   outcomeText: string;
   kind: "choice" | "forced";
+  facts: string[];
 };
 
 export type FieldIssues = Partial<Record<"occupation" | "personality" | "goal", string>>;
