@@ -131,7 +131,8 @@ nihai hedef: "${data.goal}"`;
 export const generateLifeEvent = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<LifeTurn> => {
-    const { character, stats, history, action } = data;
+    const { character, stats, history, action, facts } = data;
+
 
     // --- Kader zarı: sonucu model değil, sunucu belirler ---
     const luck = (stats.happiness + stats.wealth + stats.career - stats.stress * 1.4) / 400;
