@@ -10,10 +10,10 @@ type Props = {
 
 export function StatBar({ label, value, icon: Icon, color, delta }: Props) {
   return (
-    <div>
+    <div role="group" aria-label={`${label}: 100 üzerinden ${value}`}>
       <div className="mb-2 flex items-center justify-between text-sm">
         <span className="flex items-center gap-2 font-medium">
-          <Icon className="size-4" style={{ color }} />
+          <Icon className="size-4 shrink-0" style={{ color }} aria-hidden />
           {label}
         </span>
         <span className="flex items-baseline gap-2 tabular-nums">
@@ -28,7 +28,15 @@ export function StatBar({ label, value, icon: Icon, color, delta }: Props) {
           <span className="font-semibold">{value}%</span>
         </span>
       </div>
-      <div className="h-2.5 w-full overflow-hidden rounded-full bg-secondary">
+      <div
+        className="h-2.5 w-full overflow-hidden rounded-full bg-secondary"
+        role="progressbar"
+        aria-valuenow={value}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={label}
+      >
+
         <div
           className="stat-bar h-full rounded-full"
           style={{
