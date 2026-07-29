@@ -247,6 +247,13 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
     const ageDelta = action ? Math.max(0, Math.min(2, Number(parsed.ageDelta ?? 0) || 0)) : 0;
 
+    const newFacts = Array.isArray(parsed.facts)
+      ? (parsed.facts as unknown[])
+          .map((f) => String(f).trim())
+          .filter((f) => f.length > 1 && f.length < 160)
+          .slice(0, 5)
+      : [];
+
     const effects: LifeStats = {
       happiness: clamp(stats.happiness + eff.happiness),
       wealth: clamp(stats.wealth + eff.wealth),
@@ -262,6 +269,8 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
       outcome,
       kind,
       choices,
+      facts: newFacts,
+
       effects,
       delta: {
         happiness: effects.happiness - stats.happiness,
