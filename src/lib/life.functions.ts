@@ -21,9 +21,19 @@ const CharacterSchema = z.object({
 const InputSchema = z.object({
   character: CharacterSchema,
   stats: StatsSchema,
-  history: z.array(z.object({ event: z.string(), choice: z.string() })).default([]),
+  history: z
+    .array(
+      z.object({
+        event: z.string(),
+        choice: z.string(),
+        detail: z.string().optional(),
+      }),
+    )
+    .default([]),
+  facts: z.array(z.string()).default([]),
   action: z.string().optional(),
 });
+
 
 const SuggestSchema = z.object({
   field: z.enum(["occupation", "personality", "goal"]),
