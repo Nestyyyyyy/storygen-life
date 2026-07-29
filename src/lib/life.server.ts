@@ -39,3 +39,52 @@ export const FIELD_TR: Record<string, string> = {
   personality: "kişilik",
   goal: "nihai hayat hedefi",
 };
+
+const OPENING_DOMAINS = [
+  "aşk ya da flört",
+  "eski bir arkadaşlık",
+  "aile içi bir mesele",
+  "sağlıkla ilgili küçük bir uyarı",
+  "para/borç sıkışıklığı",
+  "komşuluk ilişkisi",
+  "bir evcil hayvan",
+  "beklenmedik bir tesadüf",
+  "geçmişten gelen bir kayıp",
+  "taşınma ya da yeni bir ev",
+  "bir hobi ya da sanat uğraşı",
+  "kısa bir yolculuk",
+  "yabancı biriyle karşılaşma",
+  "eski bir sırrın ortaya çıkması",
+];
+
+const OPENING_SCENES = [
+  "sabahın erken saati, mutfakta",
+  "gece yarısı, telefon ekranının ışığında",
+  "yağmurlu bir akşamüstü, otobüs durağında",
+  "pazar öğleden sonrası, apartman merdiveninde",
+  "iş çıkışı, kalabalık bir caddede",
+  "hafta sonu, bir kafenin arka masasında",
+  "bayram sabahı, kalabalık bir evde",
+  "gece treninde, cam kenarında",
+];
+
+const OPENING_TONES = [
+  "sıcak ve tatlı-buruk",
+  "gergin ve tedirgin",
+  "komik ve utandırıcı",
+  "sessiz ve melankolik",
+  "aceleci ve kaotik",
+  "şüpheli ve merak uyandırıcı",
+];
+
+const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+
+export function openingSeed() {
+  return {
+    domain: pick(OPENING_DOMAINS),
+    scene: pick(OPENING_SCENES),
+    tone: pick(OPENING_TONES),
+    nonce: Math.random().toString(36).slice(2, 10),
+  };
+}
+

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { askAi, clamp, FIELD_TR } from "./life.server";
+import { askAi, clamp, FIELD_TR, openingSeed } from "./life.server";
 
 const StatsSchema = z.object({
   happiness: z.number(),
@@ -21,9 +21,19 @@ const CharacterSchema = z.object({
 const InputSchema = z.object({
   character: CharacterSchema,
   stats: StatsSchema,
-  history: z.array(z.object({ event: z.string(), choice: z.string() })).default([]),
+  history: z
+    .array(
+      z.object({
+        event: z.string(),
+        choice: z.string(),
+        detail: z.string().optional(),
+      }),
+    )
+    .default([]),
+  facts: z.array(z.string()).default([]),
   action: z.string().optional(),
 });
+
 
 const SuggestSchema = z.object({
   field: z.enum(["occupation", "personality", "goal"]),
@@ -52,6 +62,7 @@ export type LifeTurn = {
   outcome: "success" | "partial" | "failure" | "neutral";
   outcomeText: string;
   kind: "choice" | "forced";
+  facts: string[];
 };
 
 export type FieldIssues = Partial<Record<"occupation" | "personality" | "goal", string>>;
@@ -120,7 +131,8 @@ nihai hedef: "${data.goal}"`;
 export const generateLifeEvent = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<LifeTurn> => {
-    const { character, stats, history, action } = data;
+    const { character, stats, history, action, facts } = data;
+
 
     // --- Kader zarı: sonucu model değil, sunucu belirler ---
     const luck = (stats.happiness + stats.wealth + stats.career - stats.stress * 1.4) / 400;
@@ -146,14 +158,20 @@ export const generateLifeEvent = createServerFn({ method: "POST" })
       ? `BU OLAYDA SEÇİM HAKKI YOK ("kind":"forced"): hayat kararı senin yerine verir (hastalık, kaza, biri seni terk eder, işten çıkarılırsın, beklenmedik haber, bürokratik zorunluluk). Okuyucuya soru sorma. "choices" tek elemanlı olsun: [{"label":"<duruma özel kısa devam etiketi, örn. 'Sabahı bekle'>","recommended":true}].`
       : `"kind":"choice" ve tam 3 seçenek ver.`;
 
+    const factLine = facts.length
+      ? `KALICI GERÇEKLER (asla değiştirme, isimleri aynen kullan): ${facts.slice(-30).join(" | ")}`
+      : "KALICI GERÇEKLER: henüz yok.";
+
     const system = `Sen usta bir hayat simülasyonu anlatıcısısın: keskin gözlemci, ironik, bazen acımasız, bazen şefkatli bir romancı gibi yazarsın.
 TÜM metinleri doğal, akıcı, idiomatik TÜRKÇE yaz. İkinci tekil şahısla ("sen"); somut detaylar (isimler, mekânlar, saatler, replikler). Klişe yok. Max 85 kelime.
 Karakterin cinsiyetine uygun hitap, ilişki ve toplumsal detaylar kur.
+SÜREKLİLİK ZORUNLU: Sana verilen "KALICI GERÇEKLER" listesindeki kişi, hayvan, mekân ve iş isimlerini ASLA değiştirme. Yeni bir isim uydurmadan önce listeyi kontrol et; aynı varlık için farklı isim kullanmak yasak. Yeni kalıcı bir isim/ilişki/mekân ortaya çıkarsa onu "facts" dizisine kısa bir cümleyle ekle (örn. "Köpeğinin adı Şila").
 ÇEŞİTLİLİK ZORUNLU: sadece iş/kariyer olmasın. Alanlar arasında dolaş, arka arkaya aynı alanı tekrarlama: aşk, ayrılık, arkadaşlık ve ihanet, aile, sağlık, para ve borç, taşınma, hobi ve sanat, inanç, komşuluk, evcil hayvan, tesadüf, kayıp ve yas, küçük gündelik anlar, seyahat, teknoloji, hukuki sürprizler.
 HAYAT ADİL DEĞİL: hikâye sürekli yükselmesin. Sık sık geri tepme, pişmanlık, kayıp ve tökezleme olsun. "İyi seçim" bile bazen kötü sonuçlansın.
 Geçmiş seçimler birikmeli sonuç doğursun; eski kişiler geri dönsün.
 Sadece şu JSON'u döndür:
-{"title":string,"narrative":string,"outcomeText":string,"kind":"choice"|"forced","choices":[{"label":string,"recommended":boolean}],"effects":{"happiness":number,"wealth":number,"career":number,"stress":number},"ageDelta":number}
+{"title":string,"narrative":string,"outcomeText":string,"kind":"choice"|"forced","choices":[{"label":string,"recommended":boolean}],"effects":{"happiness":number,"wealth":number,"career":number,"stress":number},"ageDelta":number,"facts":string[]}
+"facts": SADECE bu sahnede ilk kez ortaya çıkan kalıcı bilgiler (isimler, ilişkiler, mekânlar). Yoksa boş dizi.
 "outcomeText": az önceki seçimin sonucunu anlatan TEK cümle (ilk olayda boş string).
 "narrative": sonuçtan SONRA gelen yeni sahne.
 Seçenek etiketleri kısa ve eyleme dönük (max 9 kelime), biri riskli / biri güvenli / biri beklenmedik; tam olarak biri recommended=true (ama "önerilen" garanti değildir).
@@ -162,20 +180,34 @@ ageDelta: ilk olayda 0; sonra ÇOĞUNLUKLA 0, gerekiyorsa 1, çok nadiren 2.`;
 
     const who = `${character.age} yaşında ${character.gender} ${character.occupation}, kişilik: ${character.personality}, nihai hedef: ${character.goal}`;
 
+    const seed = openingSeed();
+
     const userMsg = action
       ? `Karakter: ${who}.
+${factLine}
 Güncel durum: ${JSON.stringify(stats)}.
 Hayat geçmişi (eskiden yeniye): ${history
           .slice(-12)
-          .map((h, i) => `${i + 1}) ${h.event} -> ${h.choice}`)
+          .map(
+            (h, i) =>
+              `${i + 1}) ${h.event}${h.detail ? ` — ${h.detail.slice(0, 160)}` : ""} -> ${h.choice}`,
+          )
           .join(" | ")}
 Az önce şunu seçti: "${action}".
 ${outcomeRule}
 ${shapeRule}
 Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
-      : `Şu karakter için açılış olayını yaz: ${who}. Kariyerle değil, kişisel/duygusal bir anla başla. outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
+      : `Şu karakter için açılış olayını yaz: ${who}.
+Bu açılış ŞU tohuma göre kurulsun (birebir kopyalama, ilham al):
+- hayat alanı: ${seed.domain}
+- sahne: ${seed.scene}
+- ton: ${seed.tone}
+- çeşitlilik anahtarı: ${seed.nonce}
+Kariyerle başlama; kişisel/duygusal bir anla başla. Daha önce yazdığın hiçbir açılışa benzemesin.
+outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
-    const parsed = await askAi(system, userMsg, 1);
+    const parsed = await askAi(system, userMsg, action ? 1 : 1.2);
+
 
     const kind: LifeTurn["kind"] = forced ? "forced" : "choice";
     const limit = forced ? 1 : 3;
@@ -215,6 +247,13 @@ Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
 
     const ageDelta = action ? Math.max(0, Math.min(2, Number(parsed.ageDelta ?? 0) || 0)) : 0;
 
+    const newFacts = Array.isArray(parsed.facts)
+      ? (parsed.facts as unknown[])
+          .map((f) => String(f).trim())
+          .filter((f) => f.length > 1 && f.length < 160)
+          .slice(0, 5)
+      : [];
+
     const effects: LifeStats = {
       happiness: clamp(stats.happiness + eff.happiness),
       wealth: clamp(stats.wealth + eff.wealth),
@@ -230,6 +269,8 @@ Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
       outcome,
       kind,
       choices,
+      facts: newFacts,
+
       effects,
       delta: {
         happiness: effects.happiness - stats.happiness,

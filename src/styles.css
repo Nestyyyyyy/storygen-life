@@ -80,13 +80,13 @@
   --secondary: oklch(0.27 0.03 265);
   --secondary-foreground: oklch(0.96 0.005 250);
   --muted: oklch(0.26 0.025 265);
-  --muted-foreground: oklch(0.7 0.025 260);
+  --muted-foreground: oklch(0.8 0.02 260);
   --accent: oklch(0.65 0.19 300);
   --accent-foreground: oklch(0.97 0.005 250);
   --destructive: oklch(0.62 0.22 20);
   --destructive-foreground: oklch(0.97 0.005 250);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 14%);
+  --border: oklch(1 0 0 / 22%);
+  --input: oklch(1 0 0 / 38%);
   --ring: oklch(0.78 0.15 175);
   --happiness: oklch(0.82 0.17 90);
   --wealth: oklch(0.78 0.16 150);
@@ -118,6 +118,8 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.6;
     background-image:
       radial-gradient(900px 500px at 12% -10%, oklch(0.78 0.15 175 / 0.12), transparent 70%),
       radial-gradient(800px 500px at 95% 0%, oklch(0.65 0.19 300 / 0.12), transparent 70%);
@@ -130,7 +132,14 @@
     font-family: var(--font-display);
     letter-spacing: -0.02em;
   }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-md);
+  }
 }
+
 
 @utility panel {
   background-color: var(--color-card);
@@ -149,11 +158,12 @@
 
 @utility field {
   width: 100%;
+  min-height: 2.75rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--color-input);
   background-color: color-mix(in oklab, var(--color-background) 60%, transparent);
   padding: 0.65rem 0.9rem;
-  font-size: 0.9rem;
+  font-size: 0.9375rem;
   color: var(--color-foreground);
   outline: none;
   transition: border-color 150ms ease, box-shadow 150ms ease;
@@ -162,8 +172,13 @@
     color: var(--color-muted-foreground);
   }
 
+  &:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
   &:focus {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 20%, transparent);
   }
 }
+
