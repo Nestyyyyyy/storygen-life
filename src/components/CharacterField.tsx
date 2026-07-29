@@ -1,11 +1,5 @@
-import { useId, useState } from "react";
-import {
-  Loader2,
-  Sparkles,
-  MessageSquarePlus,
-  AlertCircle,
-  Check,
-} from "lucide-react";
+import { useState } from "react";
+import { Loader2, Sparkles, MessageSquarePlus, AlertCircle, Check } from "lucide-react";
 
 type Props = {
   label: string;
@@ -24,38 +18,36 @@ export function CharacterField({
   error,
   onSuggest,
   hintPlaceholder,
-  className,
+  className = "",
 }: Props) {
-  const id = useId();
   const [busy, setBusy] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
   const [hint, setHint] = useState("");
-  const [done, setDone] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [status, setStatus] = useState<"idle" | "ok" | "fail">("idle");
+
+  const id = `field-${label.toLowerCase().replace(/\s+/g, "-")}`;
 
   async function ask(withHint?: string) {
     if (busy) return;
     setBusy(true);
-    setDone(false);
-    setFailed(false);
+    setStatus("idle");
     try {
       const v = await onSuggest(withHint);
       if (v) {
         onChange(v);
-        setDone(true);
-        setTimeout(() => setDone(false), 4000);
+        setStatus("ok");
       } else {
-        setFailed(true);
+        setStatus("fail");
       }
     } catch {
-      setFailed(true);
+      setStatus("fail");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className={className}>
+    <div className={`min-w-0 ${className}`}>
       <label
         htmlFor={id}
         className="mb-1.5 block text-xs font-semibold tracking-wide text-muted-foreground uppercase"
@@ -67,50 +59,51 @@ export function CharacterField({
         id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="field"
-        aria-invalid={error ? true : undefined}
+        aria-invalid={Boolean(error)}
         aria-describedby={error ? `${id}-error` : undefined}
+        className="field w-full"
         style={error ? { borderColor: "var(--destructive)" } : undefined}
       />
 
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+      <div className="mt-2 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => void ask()}
           disabled={busy}
-          aria-label={`${label} için yapay zekâdan öneri al`}
           aria-busy={busy}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-primary/60 bg-primary/15 px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/25 disabled:opacity-60"
+          aria-label={`${label} için yapay zekâdan öneri al`}
+          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-primary/60 bg-primary/15 px-3 text-sm font-semibold text-primary transition-colors hover:bg-primary/25 disabled:opacity-60 sm:flex-none"
         >
           {busy ? (
-            <>
-              <Loader2 className="size-4 animate-spin" /> Öneriliyor…
-            </>
+            <Loader2 className="size-4 animate-spin" aria-hidden />
           ) : (
-            <>
-              <Sparkles className="size-4" /> AI ile öner
-            </>
+            <Sparkles className="size-4" aria-hidden />
           )}
+          AI ile öner
         </button>
         <button
           type="button"
           onClick={() => setHintOpen((o) => !o)}
           aria-expanded={hintOpen}
-          aria-controls={`${id}-hint`}
-          aria-label={`${label} için nasıl bir şey istediğini yaz`}
-          className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-colors ${
+          aria-label={`${label} için ipucu ver`}
+          className={`flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border px-3 text-sm font-semibold transition-colors sm:flex-none ${
             hintOpen
-              ? "border-accent bg-accent/25 text-foreground"
+              ? "border-accent bg-accent/25 text-accent"
               : "border-border text-foreground hover:bg-secondary"
           }`}
         >
-          <MessageSquarePlus className="size-4" /> İpucu ver
+          <MessageSquarePlus className="size-4" aria-hidden />
+          İpucu ver
         </button>
       </div>
 
       {hintOpen && (
-        <div id={`${id}-hint`} className="animate-fade-in mt-2 flex flex-col gap-2 sm:flex-row">
+        <div className="animate-fade-in mt-2 flex flex-col gap-2 sm:flex-row">
+          <label htmlFor={`${id}-hint`} className="sr-only">
+            {hintPlaceholder}
+          </label>
           <input
+            id={`${id}-hint`}
             value={hint}
             onChange={(e) => setHint(e.target.value)}
             onKeyDown={(e) => {
@@ -120,7 +113,6 @@ export function CharacterField({
               }
             }}
             placeholder={hintPlaceholder}
-            aria-label={`${label} için istek`}
             className="field flex-1 text-sm"
           />
           <button
@@ -135,28 +127,23 @@ export function CharacterField({
       )}
 
       <p role="status" aria-live="polite" className="sr-only">
-        {busy ? `${label} önerisi hazırlanıyor` : done ? `${label} önerisi eklendi` : ""}
+        {busy ? `${label} önerisi hazırlanıyor` : status === "ok" ? `${label} önerisi eklendi` : ""}
       </p>
 
-      {done && (
-        <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-primary">
-          <Check className="size-3.5 shrink-0" /> Öneri eklendi, dilediğin gibi düzenle.
+      {status === "ok" && !busy && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-primary">
+          <Check className="size-3.5 shrink-0" aria-hidden /> Öneri eklendi, istersen düzenle.
         </p>
       )}
-
-      {failed && (
-        <p role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs text-destructive">
-          <AlertCircle className="size-3.5 shrink-0" /> Öneri alınamadı, tekrar dene.
+      {status === "fail" && !busy && (
+        <p className="mt-1.5 flex items-center gap-1.5 text-xs text-destructive">
+          <AlertCircle className="size-3.5 shrink-0" aria-hidden /> Öneri alınamadı, tekrar dene.
         </p>
       )}
 
       {error && (
-        <p
-          id={`${id}-error`}
-          role="alert"
-          className="mt-1.5 flex items-center gap-1.5 text-xs text-destructive"
-        >
-          <AlertCircle className="size-3.5 shrink-0" /> {error}
+        <p id={`${id}-error`} className="mt-1.5 flex items-center gap-1.5 text-xs text-destructive">
+          <AlertCircle className="size-3.5 shrink-0" aria-hidden /> {error}
         </p>
       )}
     </div>
