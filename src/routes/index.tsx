@@ -183,8 +183,8 @@ function Index() {
       setEntries([]);
       setFacts([]);
       void run(char, START_STATS);
-    } catch {
-      setError("Kontrol edilemedi, tekrar dene.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kontrol edilemedi, tekrar dene.");
     } finally {
       setChecking(false);
     }
