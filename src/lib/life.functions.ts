@@ -126,11 +126,17 @@ reason: ok=false ise kısa, nazik, TÜRKÇE bir açıklama; ok=true ise boş str
 kişilik: "${data.personality}"
 nihai hedef: "${data.goal}"`;
 
-    const parsed = await askAi(system, user, 0);
-    (["occupation", "personality", "goal"] as const).forEach((f) => {
-      const r = parsed[f] as { ok?: boolean; reason?: string } | undefined;
-      if (r && r.ok === false) issues[f] = String(r.reason || "Bu geçerli bir cevap değil.");
-    });
+    try {
+      const parsed = await askAi(system, user, 0);
+      (["occupation", "personality", "goal"] as const).forEach((f) => {
+        const r = parsed[f] as { ok?: boolean; reason?: string } | undefined;
+        if (r && r.ok === false) issues[f] = String(r.reason || "Bu geçerli bir cevap değil.");
+      });
+    } catch {
+      // Yapay zekâ kontrolü yapılamazsa temel kontrollerle devam et.
+      return { ok: true, issues };
+    }
+
 
     return { ok: Object.keys(issues).length === 0, issues };
   });
