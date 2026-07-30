@@ -187,7 +187,7 @@ ageDelta: ilk olayda 0; sonra ÇOĞUNLUKLA 0, gerekiyorsa 1, çok nadiren 2.`;
 ${factLine}
 Güncel durum: ${JSON.stringify(stats)}.
 Hayat geçmişi (eskiden yeniye): ${history
-          .slice(-12)
+          .slice(-24)
           .map(
             (h, i) =>
               `${i + 1}) ${h.event}${h.detail ? ` — ${h.detail.slice(0, 160)}` : ""} -> ${h.choice}`,
