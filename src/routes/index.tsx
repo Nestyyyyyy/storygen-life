@@ -110,7 +110,7 @@ function Index() {
             .map((e) => ({
               event: e.turn.title,
               choice: e.chosen!,
-              detail: e.turn.narrative,
+              detail: [e.turn.outcomeText, e.turn.narrative].filter(Boolean).join(" "),
             })),
           action,
         },
@@ -131,21 +131,27 @@ function Index() {
     field: "occupation" | "personality" | "goal",
     hint?: string,
   ): Promise<string> {
-    const res = await suggest({
-      data: {
-        field,
-        hint,
-        context: {
-          age: Number(form.age) || undefined,
-          gender: form.gender,
-          occupation: form.occupation,
-          personality: form.personality,
-          goal: form.goal,
+    try {
+      const res = await suggest({
+        data: {
+          field,
+          hint,
+          context: {
+            age: Number(form.age) || undefined,
+            gender: form.gender,
+            occupation: form.occupation,
+            personality: form.personality,
+            goal: form.goal,
+          },
         },
-      },
-    });
-    setIssues((prev) => ({ ...prev, [field]: undefined }));
-    return res.value;
+      });
+      setError(null);
+      setIssues((prev) => ({ ...prev, [field]: undefined }));
+      return res.value;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Öneri alınamadı, tekrar dene.");
+      throw e;
+    }
   }
 
   async function start(e: React.FormEvent) {
