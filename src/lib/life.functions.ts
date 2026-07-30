@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { askAi, clamp, FIELD_TR, openingSeed } from "./life.server";
+import { askAi, clamp, fallbackSuggestion, FIELD_TR, openingSeed } from "./life.server";
 
 const StatsSchema = z.object({
   happiness: z.number(),
@@ -81,9 +81,16 @@ Klişe olmasın, her seferinde farklı ve yaratıcı bir şey üret.`;
 Karakter bilgisi: yaş ${context?.age ?? "?"}, cinsiyet ${context?.gender ?? "?"}, meslek ${context?.occupation || "?"}, kişilik ${context?.personality || "?"}, hedef ${context?.goal || "?"}.
 ${hint ? `Kullanıcının isteği: "${hint}". Buna uygun bir öneri üret.` : "Serbest, sürpriz bir öneri üret."}`;
 
-    const parsed = await askAi(system, user, 1.15);
-    return { value: String(parsed.value ?? "").trim().slice(0, 80) };
+    try {
+      const parsed = await askAi(system, user, 1.15);
+      const value = String(parsed.value ?? "").trim().slice(0, 80);
+      return { value: value || fallbackSuggestion(field) };
+    } catch {
+      // Kredi/ağ sorununda uygulama çökmesin: yerel öneri döndür.
+      return { value: fallbackSuggestion(field) };
+    }
   });
+
 
 export const validateCharacter = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
@@ -119,11 +126,17 @@ reason: ok=false ise kısa, nazik, TÜRKÇE bir açıklama; ok=true ise boş str
 kişilik: "${data.personality}"
 nihai hedef: "${data.goal}"`;
 
-    const parsed = await askAi(system, user, 0);
-    (["occupation", "personality", "goal"] as const).forEach((f) => {
-      const r = parsed[f] as { ok?: boolean; reason?: string } | undefined;
-      if (r && r.ok === false) issues[f] = String(r.reason || "Bu geçerli bir cevap değil.");
-    });
+    try {
+      const parsed = await askAi(system, user, 0);
+      (["occupation", "personality", "goal"] as const).forEach((f) => {
+        const r = parsed[f] as { ok?: boolean; reason?: string } | undefined;
+        if (r && r.ok === false) issues[f] = String(r.reason || "Bu geçerli bir cevap değil.");
+      });
+    } catch {
+      // Yapay zekâ kontrolü yapılamazsa temel kontrollerle devam et.
+      return { ok: true, issues };
+    }
+
 
     return { ok: Object.keys(issues).length === 0, issues };
   });

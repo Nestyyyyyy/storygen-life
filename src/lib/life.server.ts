@@ -22,7 +22,7 @@ export async function askAi(system: string, user: string, temperature = 1) {
   });
 
   if (res.status === 429) throw new Error("Çok hızlı gittik, biraz sonra tekrar dene.");
-  if (res.status === 402) throw new Error("Yapay zekâ kredisi bitti.");
+  if (res.status === 402) throw new Error("Yapay zekâ kredisi bitti. Çalışma alanına kredi ekleyince hikâye devam eder.");
   if (!res.ok) throw new Error(`Yapay zekâ isteği başarısız (${res.status})`);
 
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -88,3 +88,31 @@ export function openingSeed() {
   };
 }
 
+
+// --- Yapay zekâ ulaşılamadığında yerel yedekler ---
+const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
+  occupation: [
+    "gece vardiyası hemşiresi",
+    "taşra kütüphanecisi",
+    "seyyar kahveci",
+    "veteriner asistanı",
+    "belgesel kurgucusu",
+    "marangoz çırağı",
+  ],
+  personality: [
+    "inatçı, sıcakkanlı, dağınık",
+    "sakin, meraklı, alıngan",
+    "cesur, sabırsız, dürüst",
+    "utangaç, esprili, sadık",
+  ],
+  goal: [
+    "Deniz kenarında küçük bir ev almak",
+    "Ailemle aramı düzeltmek",
+    "Kendi atölyemi açmak",
+    "Korkmadan sevmeyi öğrenmek",
+  ],
+};
+
+export function fallbackSuggestion(field: string) {
+  return pick(FALLBACK_SUGGESTIONS[field] ?? FALLBACK_SUGGESTIONS.goal);
+}
