@@ -22,7 +22,7 @@ export async function askAi(system: string, user: string, temperature = 1) {
   });
 
   if (res.status === 429) throw new Error("Çok hızlı gittik, biraz sonra tekrar dene.");
-  if (res.status === 402) throw new Error("Yapay zekâ kredisi bitti.");
+  if (res.status === 402) throw new Error("Yapay zekâ kredisi bitti. Çalışma alanına kredi ekleyince hikâye devam eder.");
   if (!res.ok) throw new Error(`Yapay zekâ isteği başarısız (${res.status})`);
 
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
