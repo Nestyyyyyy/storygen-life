@@ -81,9 +81,16 @@ Klişe olmasın, her seferinde farklı ve yaratıcı bir şey üret.`;
 Karakter bilgisi: yaş ${context?.age ?? "?"}, cinsiyet ${context?.gender ?? "?"}, meslek ${context?.occupation || "?"}, kişilik ${context?.personality || "?"}, hedef ${context?.goal || "?"}.
 ${hint ? `Kullanıcının isteği: "${hint}". Buna uygun bir öneri üret.` : "Serbest, sürpriz bir öneri üret."}`;
 
-    const parsed = await askAi(system, user, 1.15);
-    return { value: String(parsed.value ?? "").trim().slice(0, 80) };
+    try {
+      const parsed = await askAi(system, user, 1.15);
+      const value = String(parsed.value ?? "").trim().slice(0, 80);
+      return { value: value || fallbackSuggestion(field) };
+    } catch {
+      // Kredi/ağ sorununda uygulama çökmesin: yerel öneri döndür.
+      return { value: fallbackSuggestion(field) };
+    }
   });
+
 
 export const validateCharacter = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
