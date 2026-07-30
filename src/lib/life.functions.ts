@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { askAi, clamp, FIELD_TR, openingSeed } from "./life.server";
+import { askAi, clamp, fallbackSuggestion, FIELD_TR, openingSeed } from "./life.server";
 
 const StatsSchema = z.object({
   happiness: z.number(),
