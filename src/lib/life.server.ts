@@ -98,21 +98,76 @@ const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
     "veteriner asistanı",
     "belgesel kurgucusu",
     "marangoz çırağı",
+    "liman vinç operatörü",
+    "mahalle fırıncısı",
+    "yolcu otobüsü şoförü",
+    "tiyatro ışıkçısı",
+    "arı yetiştiricisi",
+    "adli tıp fotoğrafçısı",
+    "okul rehber öğretmeni",
+    "saat tamircisi",
+    "dalgıç eğitmeni",
+    "radyo gece programcısı",
+    "seracı",
+    "itfaiye eri",
+    "matbaa mürettibi",
+    "köy postacısı",
+    "hayvan barınağı gönüllüsü",
+    "kargo kuryesi",
+    "balıkçı teknesi çırağı",
+    "müze bekçisi",
   ],
   personality: [
     "inatçı, sıcakkanlı, dağınık",
     "sakin, meraklı, alıngan",
     "cesur, sabırsız, dürüst",
     "utangaç, esprili, sadık",
+    "hesaplı, mesafeli, çalışkan",
+    "duygusal, gözü pek, savurgan",
+    "titiz, kuşkucu, fedakâr",
+    "gevezе, iyimser, unutkan",
+    "sessiz, gözlemci, kırılgan",
+    "asi, hırslı, kıskanç",
+    "şefkatli, tembel, barışçıl",
+    "alaycı, zeki, güvensiz",
   ],
   goal: [
     "Deniz kenarında küçük bir ev almak",
     "Ailemle aramı düzeltmek",
     "Kendi atölyemi açmak",
     "Korkmadan sevmeyi öğrenmek",
+    "Bir kitabımı bastırmak",
+    "Borçsuz bir hayata geçmek",
+    "Babamın memleketine dönmek",
+    "Bir çocuğu büyütebilmek",
+    "Sahnede bir kez çalmak",
+    "Kendi adıma bir bağ dikmek",
+    "Eski dostumu bulmak",
+    "Yalnız kalmadan huzur bulmak",
   ],
 };
 
-export function fallbackSuggestion(field: string) {
-  return pick(FALLBACK_SUGGESTIONS[field] ?? FALLBACK_SUGGESTIONS.goal);
+// Aynı öneriyi üst üste vermemek için alan başına son verilenleri hatırla.
+const recent: Record<string, string[]> = {};
+
+function withHint(field: string, hint: string) {
+  const h = hint.trim().replace(/\s+/g, " ").slice(0, 60);
+  const low = h.toLowerCase();
+  const pool = FALLBACK_SUGGESTIONS[field] ?? [];
+  const match = pool.find((p) => low.split(" ").some((w) => w.length > 3 && p.includes(w)));
+  if (match) return match;
+  if (field === "occupation") return `${h} (${pick(["çırağı", "ustası", "gönüllüsü", "eğitmeni"])})`.slice(0, 80);
+  if (field === "personality") return `${h}, ${pick(["inatçı", "meraklı", "kırılgan", "esprili"])}`.slice(0, 80);
+  return `${h.charAt(0).toUpperCase()}${h.slice(1)}`.slice(0, 80);
 }
+
+export function fallbackSuggestion(field: string, hint?: string) {
+  if (hint && hint.trim().length > 1) return withHint(field, hint);
+  const pool = FALLBACK_SUGGESTIONS[field] ?? FALLBACK_SUGGESTIONS.goal;
+  const seen = recent[field] ?? [];
+  const fresh = pool.filter((p) => !seen.includes(p));
+  const value = pick(fresh.length ? fresh : pool);
+  recent[field] = [...seen, value].slice(-Math.max(1, Math.floor(pool.length / 2)));
+  return value;
+}
+
