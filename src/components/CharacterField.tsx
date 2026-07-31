@@ -6,7 +6,7 @@ type Props = {
   value: string;
   onChange: (v: string) => void;
   error?: string;
-  onSuggest: (hint?: string) => Promise<string>;
+  onSuggest: (hint?: string) => Promise<{ value: string; source: "ai" | "local" }>;
   hintPlaceholder: string;
   className?: string;
 };
@@ -23,7 +23,7 @@ export function CharacterField({
   const [busy, setBusy] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
   const [hint, setHint] = useState("");
-  const [status, setStatus] = useState<"idle" | "ok" | "fail">("idle");
+  const [status, setStatus] = useState<"idle" | "ok" | "local" | "fail">("idle");
 
   const id = `field-${label.toLowerCase().replace(/\s+/g, "-")}`;
 
@@ -32,10 +32,10 @@ export function CharacterField({
     setBusy(true);
     setStatus("idle");
     try {
-      const v = await onSuggest(withHint);
-      if (v) {
-        onChange(v);
-        setStatus("ok");
+      const res = await onSuggest(withHint);
+      if (res.value) {
+        onChange(res.value);
+        setStatus(res.source === "ai" ? "ok" : "local");
       } else {
         setStatus("fail");
       }
