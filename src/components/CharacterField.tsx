@@ -135,6 +135,12 @@ export function CharacterField({
           <Check className="size-3.5 shrink-0" aria-hidden /> Öneri eklendi, istersen düzenle.
         </p>
       )}
+      {status === "local" && !busy && (
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> Yapay zekâya şu an
+          ulaşılamıyor (kredi/ağ), hazır bir öneri koydum. Kredi gelince ipucuna göre üretilecek.
+        </p>
+      )}
       {status === "fail" && !busy && (
         <p className="mt-1.5 flex items-center gap-1.5 text-xs text-destructive">
           <AlertCircle className="size-3.5 shrink-0" aria-hidden /> Öneri alınamadı, tekrar dene.
