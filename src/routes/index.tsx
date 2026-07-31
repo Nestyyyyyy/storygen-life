@@ -121,7 +121,8 @@ function Index() {
       setDeltas(turn.delta);
       setStats(turn.effects);
       setAge(turn.age);
-      if (turn.facts.length) setFacts((prev) => [...prev, ...turn.facts].slice(-40));
+      if (turn.facts.length)
+        setFacts((prev) => Array.from(new Set([...prev, ...turn.facts])).slice(-60));
       setEntries((prev) => [...prev, { turn }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Bir şeyler ters gitti.");
