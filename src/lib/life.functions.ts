@@ -89,7 +89,9 @@ ${avoid.length ? `Şunları tekrar etme: ${avoid.join(" | ")}` : ""}`;
 
     try {
       const parsed = await askAi(system, user, 1.15);
-      const value = String(parsed.value ?? "").trim().slice(0, 80);
+      const raw = String(parsed.value ?? "").trim();
+      // "doktor (ustası)" gibi parantezli ekleri temizle.
+      const value = raw.replace(/\s*\([^)]*\)/g, "").trim().slice(0, 80);
       if (value) return { value, source: "ai" };
       return { value: fallbackSuggestion(field, hint), source: "local" };
     } catch {
