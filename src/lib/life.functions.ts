@@ -70,25 +70,28 @@ export type FieldIssues = Partial<Record<"occupation" | "personality" | "goal", 
 
 export const suggestField = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => SuggestSchema.parse(input))
-  .handler(async ({ data }): Promise<{ value: string }> => {
-    const { field, hint, context } = data;
+  .handler(async ({ data }): Promise<{ value: string; source: "ai" | "local" }> => {
+    const { field, hint, context, avoid } = data;
     const system = `Sen bir karakter yaratma asistanısın. TÜRKÇE, kısa ve somut yaz.
 Sadece şu JSON'u döndür: {"value": string}
 - occupation: gerçek bir meslek/uğraş (max 4 kelime). Örn: "gece vardiyası hemşiresi".
 - personality: 3 sıfat, virgülle (max 5 kelime).
 - goal: tek cümlelik samimi bir hayat hedefi (max 9 kelime).
+Kullanıcı bir ipucu verdiyse ona MUTLAKA uy; ipucunu yok sayma.
 Klişe olmasın, her seferinde farklı ve yaratıcı bir şey üret.`;
     const user = `İstenen alan: ${FIELD_TR[field]}.
 Karakter bilgisi: yaş ${context?.age ?? "?"}, cinsiyet ${context?.gender ?? "?"}, meslek ${context?.occupation || "?"}, kişilik ${context?.personality || "?"}, hedef ${context?.goal || "?"}.
-${hint ? `Kullanıcının isteği: "${hint}". Buna uygun bir öneri üret.` : "Serbest, sürpriz bir öneri üret."}`;
+${hint ? `Kullanıcının isteği (ZORUNLU uy): "${hint}". Öneri bu isteğe doğrudan uygun olmalı.` : "Serbest, sürpriz bir öneri üret."}
+${avoid.length ? `Şunları tekrar etme: ${avoid.join(" | ")}` : ""}`;
 
     try {
       const parsed = await askAi(system, user, 1.15);
       const value = String(parsed.value ?? "").trim().slice(0, 80);
-      return { value: value || fallbackSuggestion(field) };
+      if (value) return { value, source: "ai" };
+      return { value: fallbackSuggestion(field, hint), source: "local" };
     } catch {
       // Kredi/ağ sorununda uygulama çökmesin: yerel öneri döndür.
-      return { value: fallbackSuggestion(field) };
+      return { value: fallbackSuggestion(field, hint), source: "local" };
     }
   });
 
