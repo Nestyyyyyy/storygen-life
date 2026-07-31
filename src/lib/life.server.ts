@@ -150,16 +150,62 @@ const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
 // Aynı öneriyi üst üste vermemek için alan başına son verilenleri hatırla.
 const recent: Record<string, string[]> = {};
 
+// İpucundaki konuyu gerçek meslek/uğraşlara bağlayan sözlük.
+// "doktor" → hekimlik dalları, "kundak" → yangın/suç dünyası vb.
+const HINT_TOPICS: { keys: string[]; jobs: string[] }[] = [
+  { keys: ["doktor", "hekim", "tıp", "hastane", "sağlık", "cerrah"], jobs: ["acil servis doktoru", "kırsalda aile hekimi", "çocuk cerrahı", "adli tabip", "ambulans hekimi", "onkoloji doktoru"] },
+  { keys: ["hemşire", "bakım"], jobs: ["yoğun bakım hemşiresi", "evde bakım hemşiresi", "gece vardiyası hemşiresi"] },
+  { keys: ["kundak", "yangın", "ateş", "suç", "hırsız", "soygun", "mafya", "çete"], jobs: ["kasa hırsızı", "kundakçı", "araba çalan tamirci", "sahte evrak ustası", "sokak dolandırıcısı", "kaçakçı teknesi kaptanı"] },
+  { keys: ["polis", "dedektif", "adalet", "hukuk", "avukat", "mahkeme"], jobs: ["cinayet masası dedektifi", "ceza avukatı", "adliye kâtibi", "narkotik polisi"] },
+  { keys: ["deniz", "balık", "gemi", "liman", "dalgıç"], jobs: ["balıkçı teknesi kaptanı", "liman vinç operatörü", "dalgıç eğitmeni", "gemi makinisti"] },
+  { keys: ["müzik", "şarkı", "gitar", "piyano", "sahne", "orkestra"], jobs: ["bar piyanisti", "stüdyo ses mühendisi", "sokak müzikçisi", "orkestra kemancısı"] },
+  { keys: ["yazı", "kitap", "gazete", "haber", "edebiyat", "şiir"], jobs: ["taşra gazetecisi", "hayalet yazar", "yayınevi editörü", "savaş muhabiri"] },
+  { keys: ["hayvan", "veteriner", "köpek", "kedi", "at"], jobs: ["kırsal veteriner", "hayvan barınağı sorumlusu", "at bakıcısı", "kuş rehabilitasyon uzmanı"] },
+  { keys: ["yemek", "aşçı", "mutfak", "fırın", "pasta", "kahve"], jobs: ["otel aşçıbaşı", "mahalle fırıncısı", "pastane şefi", "seyyar kahveci"] },
+  { keys: ["bilgisayar", "yazılım", "kod", "teknoloji", "oyun", "siber"], jobs: ["oyun programcısı", "siber güvenlik uzmanı", "veri analisti", "gömülü yazılım geliştiricisi"] },
+  { keys: ["öğretmen", "okul", "eğitim", "çocuk", "üniversite"], jobs: ["köy öğretmeni", "okul rehber öğretmeni", "anaokulu öğretmeni", "tarih doçenti"] },
+  { keys: ["uzay", "bilim", "araştırma", "laboratuvar", "fizik", "kimya"], jobs: ["gökbilimci", "laboratuvar teknisyeni", "deprem araştırmacısı", "aşı geliştirme biyoloğu"] },
+  { keys: ["asker", "savaş", "ordu", "pilot", "uçak"], jobs: ["helikopter pilotu", "arama kurtarma askeri", "mayın temizleme uzmanı", "kargo uçağı pilotu"] },
+  { keys: ["sanat", "resim", "heykel", "tasarım", "moda", "fotoğraf"], jobs: ["duvar resmi sanatçısı", "kostüm tasarımcısı", "belgesel fotoğrafçısı", "seramik ustası"] },
+  { keys: ["spor", "futbol", "boks", "koş", "antren"], jobs: ["boks antrenörü", "amatör küme futbolcusu", "fizyoterapist", "dağ rehberi"] },
+  { keys: ["toprak", "çiftlik", "tarım", "bağ", "arı", "orman"], jobs: ["arı yetiştiricisi", "bağ işletmecisi", "orman muhafaza memuru", "seracı"] },
+  { keys: ["para", "banka", "borsa", "ticaret", "patron", "şirket"], jobs: ["borsa aracısı", "banka kredi uzmanı", "küçük esnaf", "icra takip memuru"] },
+  { keys: ["yol", "şoför", "kamyon", "taksi", "kurye"], jobs: ["uzun yol kamyoncusu", "gece taksicisi", "motokurye", "yolcu otobüsü şoförü"] },
+];
+
 function withHint(field: string, hint: string) {
   const h = hint.trim().replace(/\s+/g, " ").slice(0, 60);
-  const low = h.toLowerCase();
+  const low = h.toLocaleLowerCase("tr");
+  const words = low.split(/[^\p{L}]+/u).filter(Boolean);
+
+  if (field === "occupation") {
+    // Önce ipucunun konusuna uyan gerçek meslekleri bul.
+    const topic = HINT_TOPICS.find((t) =>
+      t.keys.some((k) => low.includes(k) || words.some((w) => w.length > 3 && k.startsWith(w))),
+    );
+    if (topic) {
+      const seenKey = `occupation:${topic.keys[0]}`;
+      const seen = recent[seenKey] ?? [];
+      const fresh = topic.jobs.filter((j) => !seen.includes(j));
+      const value = pick(fresh.length ? fresh : topic.jobs);
+      recent[seenKey] = [...seen, value].slice(-Math.max(1, topic.jobs.length - 1));
+      return value;
+    }
+    // Konu sözlükte yoksa havuzdan anlamlı bir eşleşme dene.
+    const pool = FALLBACK_SUGGESTIONS.occupation ?? [];
+    const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
+    if (match) return match;
+    // Son çare: ipucunu meslek gibi yaz, "(ustası)" gibi parantez ekleme.
+    return h.toLocaleLowerCase("tr").slice(0, 80);
+  }
+
   const pool = FALLBACK_SUGGESTIONS[field] ?? [];
-  const match = pool.find((p) => low.split(" ").some((w) => w.length > 3 && p.includes(w)));
+  const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
   if (match) return match;
-  if (field === "occupation") return `${h} (${pick(["çırağı", "ustası", "gönüllüsü", "eğitmeni"])})`.slice(0, 80);
   if (field === "personality") return `${h}, ${pick(["inatçı", "meraklı", "kırılgan", "esprili"])}`.slice(0, 80);
-  return `${h.charAt(0).toUpperCase()}${h.slice(1)}`.slice(0, 80);
+  return `${h.charAt(0).toLocaleUpperCase("tr")}${h.slice(1)}`.slice(0, 80);
 }
+
 
 export function fallbackSuggestion(field: string, hint?: string) {
   if (hint && hint.trim().length > 1) return withHint(field, hint);
