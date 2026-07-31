@@ -75,6 +75,9 @@ function Index() {
   const generate = useServerFn(generateLifeEvent);
   const suggest = useServerFn(suggestField);
   const validate = useServerFn(validateCharacter);
+  const suggestedRef = useRef<Record<string, string[]>>({});
+
+
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [stats, setStats] = useState<LifeStats>(START_STATS);
