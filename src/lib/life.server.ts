@@ -125,7 +125,7 @@ const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
     "hesaplı, mesafeli, çalışkan",
     "duygusal, gözü pek, savurgan",
     "titiz, kuşkucu, fedakâr",
-    "gevezе, iyimser, unutkan",
+    "geveze, iyimser, unutkan",
     "sessiz, gözlemci, kırılgan",
     "asi, hırslı, kıskanç",
     "şefkatli, tembel, barışçıl",
