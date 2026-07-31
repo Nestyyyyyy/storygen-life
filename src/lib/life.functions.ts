@@ -38,6 +38,7 @@ const InputSchema = z.object({
 const SuggestSchema = z.object({
   field: z.enum(["occupation", "personality", "goal"]),
   hint: z.string().max(200).optional(),
+  avoid: z.array(z.string()).max(10).default([]),
   context: z
     .object({
       age: z.number().optional(),
