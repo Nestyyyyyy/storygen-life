@@ -78,10 +78,13 @@ Sadece şu JSON'u döndür: {"value": string}
 - personality: 3 sıfat, virgülle (max 5 kelime).
 - goal: tek cümlelik samimi bir hayat hedefi (max 9 kelime).
 Kullanıcı bir ipucu verdiyse ona MUTLAKA uy; ipucunu yok sayma.
+İpucu bir alan/konu ise (örn. "doktor", "kundak", "deniz") o alanın İÇİNDEN somut bir meslek üret:
+"doktor" → "acil servis doktoru", "kundak" → "kundakçı" veya "kasa hırsızı", "deniz" → "gemi makinisti".
+İpucunu olduğu gibi kopyalama; parantezli ekleme yapma ("doktor (ustası)" gibi cevaplar YASAK).
 Klişe olmasın, her seferinde farklı ve yaratıcı bir şey üret.`;
     const user = `İstenen alan: ${FIELD_TR[field]}.
 Karakter bilgisi: yaş ${context?.age ?? "?"}, cinsiyet ${context?.gender ?? "?"}, meslek ${context?.occupation || "?"}, kişilik ${context?.personality || "?"}, hedef ${context?.goal || "?"}.
-${hint ? `Kullanıcının isteği (ZORUNLU uy): "${hint}". Öneri bu isteğe doğrudan uygun olmalı.` : "Serbest, sürpriz bir öneri üret."}
+${hint ? `Kullanıcının isteği (ZORUNLU uy): "${hint}". Öneri bu konunun içinden gerçek bir meslek/uğraş olmalı; ipucunu tekrar etme, parantez kullanma.` : "Serbest, sürpriz bir öneri üret."}
 ${avoid.length ? `Şunları tekrar etme: ${avoid.join(" | ")}` : ""}`;
 
     try {
