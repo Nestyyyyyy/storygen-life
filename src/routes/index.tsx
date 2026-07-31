@@ -130,12 +130,13 @@ function Index() {
   async function askSuggestion(
     field: "occupation" | "personality" | "goal",
     hint?: string,
-  ): Promise<string> {
+  ): Promise<{ value: string; source: "ai" | "local" }> {
     try {
       const res = await suggest({
         data: {
           field,
           hint,
+          avoid: [...(suggestedRef.current[field] ?? [])].slice(-6),
           context: {
             age: Number(form.age) || undefined,
             gender: form.gender,
@@ -147,7 +148,8 @@ function Index() {
       });
       setError(null);
       setIssues((prev) => ({ ...prev, [field]: undefined }));
-      return res.value;
+      suggestedRef.current[field] = [...(suggestedRef.current[field] ?? []), res.value].slice(-8);
+      return res;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Öneri alınamadı, tekrar dene.");
       throw e;
