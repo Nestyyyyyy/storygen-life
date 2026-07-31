@@ -6,7 +6,7 @@ type Props = {
   value: string;
   onChange: (v: string) => void;
   error?: string;
-  onSuggest: (hint?: string) => Promise<string>;
+  onSuggest: (hint?: string) => Promise<{ value: string; source: "ai" | "local" }>;
   hintPlaceholder: string;
   className?: string;
 };
@@ -23,7 +23,7 @@ export function CharacterField({
   const [busy, setBusy] = useState(false);
   const [hintOpen, setHintOpen] = useState(false);
   const [hint, setHint] = useState("");
-  const [status, setStatus] = useState<"idle" | "ok" | "fail">("idle");
+  const [status, setStatus] = useState<"idle" | "ok" | "local" | "fail">("idle");
 
   const id = `field-${label.toLowerCase().replace(/\s+/g, "-")}`;
 
@@ -32,10 +32,10 @@ export function CharacterField({
     setBusy(true);
     setStatus("idle");
     try {
-      const v = await onSuggest(withHint);
-      if (v) {
-        onChange(v);
-        setStatus("ok");
+      const res = await onSuggest(withHint);
+      if (res.value) {
+        onChange(res.value);
+        setStatus(res.source === "ai" ? "ok" : "local");
       } else {
         setStatus("fail");
       }
@@ -133,6 +133,12 @@ export function CharacterField({
       {status === "ok" && !busy && (
         <p className="mt-1.5 flex items-center gap-1.5 text-xs text-primary">
           <Check className="size-3.5 shrink-0" aria-hidden /> Öneri eklendi, istersen düzenle.
+        </p>
+      )}
+      {status === "local" && !busy && (
+        <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> Yapay zekâya şu an
+          ulaşılamıyor (kredi/ağ), hazır bir öneri koydum. Kredi gelince ipucuna göre üretilecek.
         </p>
       )}
       {status === "fail" && !busy && (

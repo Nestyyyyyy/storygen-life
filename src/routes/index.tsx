@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -75,6 +75,9 @@ function Index() {
   const generate = useServerFn(generateLifeEvent);
   const suggest = useServerFn(suggestField);
   const validate = useServerFn(validateCharacter);
+  const suggestedRef = useRef<Record<string, string[]>>({});
+
+
 
   const [character, setCharacter] = useState<Character | null>(null);
   const [stats, setStats] = useState<LifeStats>(START_STATS);
@@ -118,7 +121,8 @@ function Index() {
       setDeltas(turn.delta);
       setStats(turn.effects);
       setAge(turn.age);
-      if (turn.facts.length) setFacts((prev) => [...prev, ...turn.facts].slice(-40));
+      if (turn.facts.length)
+        setFacts((prev) => Array.from(new Set([...prev, ...turn.facts])).slice(-60));
       setEntries((prev) => [...prev, { turn }]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Bir şeyler ters gitti.");
@@ -130,12 +134,13 @@ function Index() {
   async function askSuggestion(
     field: "occupation" | "personality" | "goal",
     hint?: string,
-  ): Promise<string> {
+  ): Promise<{ value: string; source: "ai" | "local" }> {
     try {
       const res = await suggest({
         data: {
           field,
           hint,
+          avoid: [...(suggestedRef.current[field] ?? [])].slice(-6),
           context: {
             age: Number(form.age) || undefined,
             gender: form.gender,
@@ -147,7 +152,8 @@ function Index() {
       });
       setError(null);
       setIssues((prev) => ({ ...prev, [field]: undefined }));
-      return res.value;
+      suggestedRef.current[field] = [...(suggestedRef.current[field] ?? []), res.value].slice(-8);
+      return res;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Öneri alınamadı, tekrar dene.");
       throw e;
