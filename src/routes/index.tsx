@@ -19,6 +19,7 @@ import {
   Minus,
   Check,
   Fingerprint,
+  BookOpen,
 } from "lucide-react";
 
 import { StatBar } from "@/components/StatBar";
@@ -467,6 +468,30 @@ function Index() {
 
           {statsCard}
 
+          {facts.length > 0 && (
+            <section
+              aria-labelledby="facts-heading"
+              className="mt-5 rounded-xl border border-border bg-secondary/30 p-4"
+            >
+              <h2
+                id="facts-heading"
+                className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+              >
+                <BookOpen className="size-3.5 text-primary" aria-hidden /> Hayat defteri
+              </h2>
+              <ul className="mt-2.5 space-y-2">
+                {facts.slice(-8).map((fct, i) => (
+                  <li
+                    key={i}
+                    className="border-l-2 border-primary/40 pl-2.5 text-xs leading-relaxed text-muted-foreground"
+                  >
+                    {fct}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
           <button
             onClick={reset}
             className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm text-foreground transition-colors hover:bg-secondary"
@@ -491,6 +516,9 @@ function Index() {
                     aria-hidden
                   />
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span className="rounded-full bg-primary/15 px-2.5 py-1 font-semibold text-primary">
+                      Bölüm {i + 1}
+                    </span>
                     <span className="rounded-full bg-secondary px-2.5 py-1 font-medium text-foreground">
                       {entry.turn.age} yaşında
                     </span>

@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   Sparkles,
   Check,
+  StickyNote,
 } from "lucide-react";
 
 import { StatBar } from "@/components/StatBar";
@@ -368,6 +369,30 @@ function Detective() {
           </div>
 
           {metersCard}
+
+          {facts.length > 0 && (
+            <section
+              aria-labelledby="case-notes-heading"
+              className="mt-5 rounded-xl border border-border bg-secondary/30 p-4"
+            >
+              <h2
+                id="case-notes-heading"
+                className="flex items-center gap-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase"
+              >
+                <StickyNote className="size-3.5 text-primary" aria-hidden /> Dosya notları
+              </h2>
+              <ul className="mt-2.5 space-y-2">
+                {facts.slice(-8).map((fct, i) => (
+                  <li
+                    key={i}
+                    className="border-l-2 border-primary/40 pl-2.5 text-xs leading-relaxed text-muted-foreground"
+                  >
+                    {fct}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <button
             onClick={reset}
