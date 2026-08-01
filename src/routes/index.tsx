@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Sparkles,
@@ -18,11 +18,13 @@ import {
   TrendingDown,
   Minus,
   Check,
+  Fingerprint,
 } from "lucide-react";
 
 import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
 import { DeltaChips } from "@/components/DeltaChips";
+import { MatureToggle } from "@/components/MatureToggle";
 import {
   generateLifeEvent,
   suggestField,
@@ -32,35 +34,7 @@ import {
   type LifeStats,
   type LifeTurn,
 } from "@/lib/life.functions";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
-const MATURE_WARN_KEY = "hs-mature-warning-hidden";
-
-function matureWarnSkipped() {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(MATURE_WARN_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function skipMatureWarn() {
-  try {
-    window.localStorage.setItem(MATURE_WARN_KEY, "1");
-  } catch {
-    /* yoksay */
-  }
-}
 
 
 
