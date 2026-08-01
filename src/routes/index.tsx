@@ -467,9 +467,9 @@ function Index() {
             </Link>
           </main>
         </div>
-
-
+      </div>
     );
+
   }
 
   // ---------- Game ----------
