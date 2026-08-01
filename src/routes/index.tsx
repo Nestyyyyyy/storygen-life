@@ -96,8 +96,6 @@ function Index() {
   const [custom, setCustom] = useState("");
   const [issues, setIssues] = useState<FieldIssues>({});
   const [mature, setMature] = useState(false);
-  const [matureWarnOpen, setMatureWarnOpen] = useState(false);
-  const [dontShowMatureWarn, setDontShowMatureWarn] = useState(false);
 
 
   const [form, setForm] = useState({
