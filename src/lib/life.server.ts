@@ -1,17 +1,64 @@
 export const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
+// --- AI sağlayıcı yapılandırması ---
+// Sağlayıcıdan bağımsız: OpenAI, Google Gemini (OpenAI uyumlu uç), OpenRouter
+// ya da eski Lovable ağ geçidi. Hangisi tanımlıysa o kullanılır.
+type AiConfig = { key: string; url: string; model: string; referer?: string; title?: string };
+
+export function aiConfig(): AiConfig {
+  // 1) Kendi sağlayıcın (öncelikli) — OpenAI uyumlu herhangi bir uç
+  //    OpenAI:     AI_BASE_URL=https://api.openai.com/v1/chat/completions           AI_MODEL=gpt-4o-mini
+  //    Gemini:     AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions  AI_MODEL=gemini-2.0-flash
+  //    OpenRouter: AI_BASE_URL=https://openrouter.ai/api/v1/chat/completions        AI_MODEL=google/gemini-2.0-flash-exp
+  const key =
+    process.env.AI_API_KEY ??
+    process.env.OPENAI_API_KEY ??
+    process.env.OPENROUTER_API_KEY;
+  if (key) {
+    return {
+      key,
+      url: process.env.AI_BASE_URL ?? "https://api.openai.com/v1/chat/completions",
+      model: process.env.AI_MODEL ?? "gpt-4o-mini",
+      referer: process.env.AI_REFERER, // OpenRouter için opsiyonel
+      title: process.env.AI_TITLE, // OpenRouter için opsiyonel
+    };
+  }
+
+  // 2) Eski Lovable ağ geçidi (geriye dönük uyumluluk)
+  const lovable = process.env.LOVABLE_API_KEY;
+  if (lovable) {
+    return {
+      key: lovable,
+      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
+      model: process.env.AI_MODEL ?? "google/gemini-3.1-pro-preview",
+    };
+  }
+
+  throw new Error(
+    "AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ya da LOVABLE_API_KEY ayarla.",
+  );
+}
+
+// Geriye dönük uyumluluk için korunuyor.
 export function aiKey() {
-  const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("Missing LOVABLE_API_KEY");
-  return key;
+  return aiConfig().key;
 }
 
 export async function askAi(system: string, user: string, temperature = 1) {
-  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+  const cfg = aiConfig();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${cfg.key}`,
+  };
+  // OpenRouter isteğe bağlı başlıkları (tanımlıysa)
+  if (cfg.referer) headers["HTTP-Referer"] = cfg.referer;
+  if (cfg.title) headers["X-Title"] = cfg.title;
+
+  const res = await fetch(cfg.url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey()}` },
+    headers,
     body: JSON.stringify({
-      model: "google/gemini-3.1-pro-preview",
+      model: cfg.model,
       temperature,
       response_format: { type: "json_object" },
       messages: [
@@ -22,7 +69,9 @@ export async function askAi(system: string, user: string, temperature = 1) {
   });
 
   if (res.status === 429) throw new Error("Çok hızlı gittik, biraz sonra tekrar dene.");
-  if (res.status === 402) throw new Error("Yapay zekâ kredisi bitti. Çalışma alanına kredi ekleyince hikâye devam eder.");
+  if (res.status === 401 || res.status === 403)
+    throw new Error("AI anahtarı geçersiz ya da yetkisiz. Anahtarını kontrol et.");
+  if (res.status === 402) throw new Error("Yapay zekâ kredisi bitti. Hesabına kredi ekleyince hikâye devam eder.");
   if (!res.ok) throw new Error(`Yapay zekâ isteği başarısız (${res.status})`);
 
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
