@@ -200,68 +200,91 @@ export function judgeAnswer(
 
 
 // ============================================================
-//  YEREL SORGU MOTORU — yapay zekâ / API gerektirmez
+//  YEREL SORGU MOTORU v2 — yapay zekâ / API gerektirmez
 // ============================================================
 
 const REACTIONS: Record<"iyi" | "kötü" | "karışık", string[]> = {
   iyi: [
-    "{name} bir an duraksıyor; kaleminin ucu kâğıtta bekliyor. Cevabın işine gelmemiş gibi.",
-    "Gözlerini kısıyor, sonra dosyayı kapatıp sandalyesine yaslanıyor. Puan aldın ama belli etmiyor.",
-    "{name} kısa bir 'hmm' çekiyor. İlk kez tereddüt ettiğini görüyorsun.",
+    "{name} bir an duraksıyor; kaleminin ucu kâğıdın üstünde asılı kalıyor. Cevabın beklediği gibi değildi — dosyaya bakıp tekrar sana bakıyor, sonra hiçbir şey yazmadan sayfayı çeviriyor.",
+    "Gözlerini kısıyor, sandalyesine yaslanıp uzun bir nefes veriyor. \"İlginç,\" diyor sadece. Odadaki dengenin bir milim senden yana kaydığını ikiniz de hissediyorsunuz.",
+    "{name} önündeki bardağı yavaşça kenara itiyor. İlk kez sesinde o keskin kenar yok: \"Bunu doğrulatacağım. Doğruysa... konuşuruz.\" Kalbinin sesi biraz olsun yavaşlıyor.",
+    "Bir şey değişti: {name} artık sana değil, notlarına bakıyor. Parmağıyla masaya tempo tutuyor — sinirli değil, düşünceli. Hikâyen tutmuş olabilir.",
+    "\"Hm.\" {name} bunu derken kaşları hafifçe kalkıyor. Yan odadaki aynanın arkasında birilerinin fısıldaştığını hayal ediyorsun; bu tur senin.",
   ],
   kötü: [
-    "{name} dosyadan bir fotoğraf çıkarıp masaya vuruyor: \"Bunu nasıl açıklayacaksın?\"",
-    "Dudağının kenarı alaycı bir gülümsemeyle kıvrılıyor. \"İşte şimdi yakaladım seni.\"",
-    "{name} sandalyesini gıcırdatarak öne eğiliyor; sesi bıçak gibi: \"Bir daha dene.\"",
+    "{name} dosyadan bir fotoğraf çıkarıp masaya vuruyor; ses odada yankılanıyor. \"Peki bunu nasıl açıklayacaksın?\" Fotoğraftaki ayrıntıyı görünce boğazın kuruyor.",
+    "Dudağının kenarı alaycı bir gülümsemeyle kıvrılıyor. \"Az önce ne dedin, bir daha söyle?\" Kendi cümlenin altında kaldığını ikiniz de biliyorsunuz. Kalemi hızlı hızlı bir şeyler karalıyor.",
+    "{name} sandalyesini gıcırdatarak öne eğiliyor; yüzü yüzüne bir karış. \"Sana bir tavsiye: bir daha yalan söyleyeceksen, önce eskilerini ezberle.\" Sırtından soğuk bir ter iniyor.",
+    "Masaya bir kâğıt sürüyor: ifadenin dökümü, bir cümlenin altı kırmızıyla çizili. \"Burada öyle dememişsin.\" Odanın havası bir anda ağırlaşıyor; klima bile sustu sanki.",
+    "{name} ayağa kalkıp arkandan dolaşıyor; onu göremiyorsun ama sesini ensende hissediyorsun: \"Sabrımı test ediyorsun. Bu, kaybedeceğin tek test değil.\"",
   ],
   karışık: [
-    "{name} not alıyor, yüzünden hiçbir şey okunmuyor.",
-    "Kısa bir sessizlik. Duvar saatinin sesi odayı dolduruyor.",
-    "{name} çayından bir yudum alıp seni süzüyor. Ne düşündüğü belli değil.",
+    "{name} not alıyor; yüzünden hiçbir şey okunmuyor. Kalemin kâğıda sürtünme sesi, odadaki tek ses. Bekliyorsun; beklemek de sorgunun bir parçası.",
+    "Kısa bir sessizlik. {name} bardağından bir yudum alıp seni tartıyor — ne inanmış ne inanmamış. \"Devam edelim,\" diyor sonunda.",
+    "Cevabını duyunca başını hafifçe yana eğiyor; bir şey diyecek gibi oluyor, vazgeçiyor. Dosyada bir sayfa çevriliyor. Duvar saati bir tur daha atıyor.",
+    "{name} cevabını sessizce karşılıyor ama gözleri 'bunu unutmayacağım' diyor. Ne kazandın ne kaybettin; ip hâlâ gergin.",
   ],
 };
 
 const QUESTIONS = [
-  "O gece saat kaçta evdeydin? Komşun seni {time} dışarıda gördüğünü söylüyor.",
-  "Telefon kayıtlarına baktık. {time} kimi aradın?",
-  "Olay yerindeki kamera görüntülerinde sana çok benzeyen biri var. Ne diyeceksin?",
-  "Banka hesabına geçen hafta giren o para nereden geldi?",
-  "{witness} seni olay yerinin yakınında gördüğünü söylüyor. Yalan mı söylüyor?",
-  "Ailene bu durumu nasıl açıklayacaksın? Onlar da ifade verecek, biliyorsun.",
-  "Elindeki o izler nasıl oldu? Doktor raporu istememi ister misin?",
-  "Ortağın her şeyi anlattı bile. Sen hâlâ neden susuyorsun?",
-  "Aracın o gece nerede park halindeydi? Plaka kayıtları bizde.",
-  "Bu işten kazancın ne olacaktı? Kim seni buna ikna etti?",
+  "O gece saat kaçta evdeydin? Komşun {witness2}, seni {time} apartmandan çıkarken gördüğünü söylüyor — ikinizden biri yanılıyor.",
+  "Telefon kayıtlarını önüme koydular. {time} tam dört dakikalık bir görüşme yapmışsın. Kiminle ve neden?",
+  "Olay yerinin iki sokak ötesindeki kameraya sana çok benzeyen biri takılmış. Yürüyüşü bile seninki. Ne diyeceksin?",
+  "Hesabına geçen hafta {money} girmiş. Maaş günü değil, bayram değil. Bu para nereden geldi?",
+  "{witness} seni olay yerinin yakınında gördüğünü söylüyor ve ifadesinden çok emin. Ona neden yalan söylesin?",
+  "Aileni de çağıracağız, biliyorsun. Annenin yüzüne bakıp aynı hikâyeyi anlatabilecek misin?",
+  "Ellerindeki o izleri görüyorum. Nasıl oldu? İstersen doktor raporu isteyelim, ama o zaman iş resmiyet kazanır.",
+  "Ortağın az önce yan odada her şeyi anlattı. Her şeyi. Senin hâlâ susman kimi koruyor?",
+  "Aracın o gece nerede park hâlindeydi? Plaka tanıma sistemi başka bir adres söylüyor.",
+  "Bu işten eline ne geçecekti? Seni buna kim ikna etti — yoksa fikir baştan senin miydi?",
+  "Olaydan iki gün önce internette ne aradığını biliyoruz. Açıklamak ister misin, ben mi okuyayım?",
+  "Üstündeki kıyafet o gece giydiğinle aynı mı? Çünkü elimizde bir lif analizi var ve sonucu birazdan gelecek.",
+  "Neden ilk ifadende {witness}'ten hiç bahsetmedin? İnsan, tanımadığı birini unutmaz — tanıdığını saklar.",
+  "Şu ana kadar anlattıkların üç yerde birbirini tutmuyor. Sana son bir şans veriyorum: baştan, ağır ağır anlat.",
 ];
 
 const OPTION_SETS: { label: string; kind: AnswerKind }[][] = [
   [
-    { label: "O gece evdeydim, kimse görmedi", kind: "yalan" },
-    { label: "Doğruyu söyle: oradaydın", kind: "doğru" },
-    { label: "Gülümseyip gözlerine bak", kind: "flört" },
-    { label: "Zor bir dönemden geçtiğini anlat", kind: "duygu" },
+    { label: "O saatte çoktan uyumuştum; telefonum da sessizdeydi", kind: "yalan" },
+    { label: "Tamam, oradaydım — ama olanlarla hiçbir ilgim yok", kind: "doğru" },
+    { label: "Bu kadar güzel sorgulanacağımı bilsem daha önce gelirdim", kind: "flört" },
+    { label: "Son aylarda neler yaşadığımı bilseniz beni anlardınız", kind: "duygu" },
   ],
   [
-    { label: "Bir arkadaşımı aradım, alakası yok", kind: "yalan" },
-    { label: "Her şeyi baştan anlat", kind: "doğru" },
-    { label: "\"Sesiniz çok sakinleştirici\" de", kind: "flört" },
-    { label: "Sessiz kalma hakkını kullan", kind: "sessiz" },
+    { label: "Yanlış hatırlıyorlar; o gün şehirde bile değildim", kind: "yalan" },
+    { label: "Size her şeyi baştan, dürüstçe anlatacağım", kind: "doğru" },
+    { label: "Gözlerinizin içine bakıp gülümse ve sessizce bekle", kind: "flört" },
+    { label: "Avukatım gelene kadar tek kelime etmeyeceğim", kind: "sessiz" },
   ],
   [
-    { label: "Kameradaki kişi ben değilim", kind: "yalan" },
-    { label: "Kısmen doğruyu kabul et", kind: "doğru" },
-    { label: "Ailenden ve borçlarından bahset", kind: "duygu" },
-    { label: "Tek kelime etme, bekle", kind: "sessiz" },
+    { label: "Kameradaki kişi ben değilim; herkes bana benzer zaten", kind: "yalan" },
+    { label: "Bir kısmı doğru... ama hikâyenin tamamını bilmiyorsunuz", kind: "doğru" },
+    { label: "Borçlarımı, hasta annemi, uykusuz gecelerimi anlat", kind: "duygu" },
+    { label: "Kollarını kavuştur ve duvardaki aynaya bak", kind: "sessiz" },
+  ],
+  [
+    { label: "O para eski bir alacağımdı; belgesini bulabilirim", kind: "yalan" },
+    { label: "Parayı kimden aldığımı söylersem beni korur musunuz?", kind: "doğru" },
+    { label: "\"Bu saatte hâlâ bu kadar dinç olmanız etkileyici\" de", kind: "flört" },
+    { label: "Sesin titreyerek çocukluğundan bahsetmeye başla", kind: "duygu" },
+  ],
+  [
+    { label: "İfademi değiştirmiyorum; isterseniz yüz kere sorun", kind: "yalan" },
+    { label: "Derin bir nefes al ve sakladığın ayrıntıyı itiraf et", kind: "doğru" },
+    { label: "\"Kahve içmeye dışarıda da devam edebiliriz\" diye fısılda", kind: "flört" },
+    { label: "Masaya bak ve tek kelime etmeden bekle", kind: "sessiz" },
   ],
 ];
 
 const VERDICT_FREED = [
-  "{name} dosyayı kapatıp kapıyı gösteriyor: \"Gidebilirsin... şimdilik.\" Koridorda attığın her adımda sırtında bakışlarını hissediyorsun. Serbestsin ama bu dosya rafta seni bekliyor.",
-  "Saatler sonra kapı açılıyor. \"Delil yetersiz\" diyor {name}, sesinde hayal kırıklığı var. Dışarıda gün yeni doğuyor; ciğerlerine çektiğin hava hiç bu kadar tatlı gelmemişti.",
+  "{name} dosyayı yavaşça kapatıyor ve uzun bir sessizlikten sonra kapıyı gösteriyor: \"Gidebilirsin. Şimdilik.\" Koridor boyunca sırtında bakışlarını hissediyorsun; çıkış kapısı açıldığında gün ışığı gözünü alıyor. Serbestsin — ama o dosyanın rafta seni beklediğini ikiniz de biliyorsunuz.",
+  "Saatler sonra kapı açılıyor. \"Delil yetersiz,\" diyor {name}; sesinde saklayamadığı bir hayal kırıklığı var. Eşyalarını imza karşılığı geri alıyorsun: telefon, anahtarlar, bir parça gurur. Dışarıda hava kararmış; ciğerlerine çektiğin ilk nefes, hayatında aldığın en tatlı nefes.",
+  "{name} son bir kez gözlerinin içine bakıyor: \"İçgüdülerim başka bir şey söylüyor ama kanıtlarım yok. Git — ve bir daha bu masaya oturma.\" Kalkarken sandalyenin gıcırtısı bile özgürlük şarkısı gibi geliyor. Kapıdan çıkarken arkana bakmıyorsun.",
 ];
 const VERDICT_JAILED = [
-  "{name} ayağa kalkıp tek cümle söylüyor: \"Tutuklusun.\" Bileklerindeki soğuk metal, duyduğun son net his oluyor. Seni koridorun sonundaki demir kapıya doğru götürüyorlar.",
-  "\"Yeterince dinledim\" diyor {name} ve dosyayı kapatıyor. İtiraz edecek gücün kalmıyor; nezarethanenin ışığı gözünü alıyor. Bu gece uzun olacak.",
+  "{name} ağır ağır ayağa kalkıyor ve tek cümle söylüyor: \"Tutuklusun.\" Gerisi bir sis: okunan haklar, bileklerindeki soğuk metal, koridorun bitmeyen floresan ışığı. Demir kapı arkandan kapanırken, o masada söylediğin her cümleyi tek tek hatırlıyorsun — özellikle de söylememen gerekenleri.",
+  "\"Yeterince dinledim.\" {name} dosyayı kapatıp aynanın arkasındakilere başıyla işaret ediyor. İtiraz etmeye çalışıyorsun ama kelimeler artık para etmiyor. Nezarethanenin ışığı gözünü alıyor; duvardaki çizikleri sayarak sabahı bekliyorsun. Bu gece uzun, önündeki geceler daha uzun.",
+  "Son cevabınla birlikte odadaki hava değişiyor. {name} kalemi bırakıyor — bu, sorgunun bittiği anlamına geliyor ve bittiği yer senin lehine değil. \"Savcılık gerisini halleder,\" diyor. Götürülürken koridordaki panoda kendi fotoğrafını görüyorsun; kırmızı kalemle daire içine alınmış.",
 ];
 
 export function localInterrogationTurn(a: {
@@ -273,8 +296,10 @@ export function localInterrogationTurn(a: {
   const p = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const vars: Record<string, string> = {
     name: a.interrogator.name,
-    time: p(["gece 23 sularında", "sabaha karşı", "akşam saatlerinde"]),
-    witness: p(["Bir görgü tanığı", "Karşı bakkalın sahibi", "Gece bekçisi"]),
+    time: p(["gece 23 sularında", "sabaha karşı üçte", "akşam dokuz civarı"]),
+    money: p(["12 bin lira", "40 bin lira", "hatırı sayılır bir para"]),
+    witness: p(["Görgü tanığı", "Karşı bakkalın sahibi", "Gece bekçisi", "Apartman yöneticisi"]),
+    witness2: p(["Sabri Bey", "Nuran Hanım", "alt kattaki emekli öğretmen"]),
   };
   const f = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 
@@ -290,7 +315,7 @@ export function localInterrogationTurn(a: {
 
   return {
     reaction: a.judgeResult ? f(p(REACTIONS[a.judgeResult])) : "",
-    question: f(QUESTIONS[(a.turnNo + Math.floor(Math.random() * 3)) % QUESTIONS.length]),
+    question: f(QUESTIONS[(a.turnNo * 3 + Math.floor(Math.random() * 4)) % QUESTIONS.length]),
     options: p(OPTION_SETS),
     verdictText: "",
     facts: [],
