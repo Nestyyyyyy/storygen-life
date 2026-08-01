@@ -32,6 +32,37 @@ import {
   type LifeStats,
   type LifeTurn,
 } from "@/lib/life.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+const MATURE_WARN_KEY = "hs-mature-warning-hidden";
+
+function matureWarnSkipped() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(MATURE_WARN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function skipMatureWarn() {
+  try {
+    window.localStorage.setItem(MATURE_WARN_KEY, "1");
+  } catch {
+    /* yoksay */
+  }
+}
+
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
