@@ -192,13 +192,13 @@ ${statusRule}`;
       status === "ongoing"
         ? rawOptions.slice(0, 4).map((o) => {
             const v = o as { label?: string; kind?: string };
-            const kind = (["yalan", "doğru", "flört", "duygu", "sessiz"] as const).includes(
-              v.kind as AnswerKind,
-            )
+            const allowed = ["yalan", "doğru", "flört", "duygu", "sessiz"];
+            const kind: AnswerKind = allowed.includes(String(v.kind))
               ? (v.kind as AnswerKind)
               : "serbest";
             return { label: String(v.label ?? "Sessiz kal"), kind };
           })
+
         : [];
 
     if (status === "ongoing" && options.length < 4) {
