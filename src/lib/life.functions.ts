@@ -196,6 +196,7 @@ SÜREKLİLİK ZORUNLU: Sana verilen "KALICI GERÇEKLER" listesindeki kişi, hayv
 ÇEŞİTLİLİK ZORUNLU: sadece iş/kariyer olmasın. Alanlar arasında dolaş, arka arkaya aynı alanı tekrarlama: aşk, ayrılık, arkadaşlık ve ihanet, aile, sağlık, para ve borç, taşınma, hobi ve sanat, inanç, komşuluk, evcil hayvan, tesadüf, kayıp ve yas, küçük gündelik anlar, seyahat, teknoloji, hukuki sürprizler.
 HAYAT ADİL DEĞİL: hikâye sürekli yükselmesin. Sık sık geri tepme, pişmanlık, kayıp ve tökezleme olsun. "İyi seçim" bile bazen kötü sonuçlansın.
 Geçmiş seçimler birikmeli sonuç doğursun; eski kişiler geri dönsün.
+${matureRule}
 Sadece şu JSON'u döndür:
 {"title":string,"narrative":string,"outcomeText":string,"kind":"choice"|"forced","choices":[{"label":string,"recommended":boolean}],"effects":{"happiness":number,"wealth":number,"career":number,"stress":number},"ageDelta":number,"facts":string[]}
 "facts": SADECE bu sahnede ilk kez ortaya çıkan kalıcı bilgiler (isimler, ilişkiler, mekânlar). Yoksa boş dizi.
