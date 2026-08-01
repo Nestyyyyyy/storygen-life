@@ -90,6 +90,7 @@ function Index() {
   const [error, setError] = useState<string | null>(null);
   const [custom, setCustom] = useState("");
   const [issues, setIssues] = useState<FieldIssues>({});
+  const [mature, setMature] = useState(false);
 
   const [form, setForm] = useState({
     age: "24",
@@ -108,6 +109,7 @@ function Index() {
           character: { ...char, age: age || char.age },
           stats: base,
           facts,
+          mature,
           history: entries
             .filter((e) => e.chosen)
             .map((e) => ({
@@ -353,6 +355,45 @@ function Index() {
                     })}
                   </div>
                 </fieldset>
+
+                <div className="md:col-span-2">
+                  <label
+                    className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--color-ring)] ${
+                      mature ? "border-primary bg-primary/10" : "border-border hover:bg-secondary"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={mature}
+                      onChange={(e) => setMature(e.target.checked)}
+                      className="sr-only"
+                    />
+                    <span
+                      aria-hidden
+                      className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border ${
+                        mature ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"
+                      }`}
+                    >
+                      {mature && <Check className="size-3.5" />}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold">
+                        Yetişkin modu (18+)
+                        {mature && (
+                          <span className="ml-2 rounded-md bg-primary px-1.5 py-0.5 text-[11px] font-bold text-primary-foreground">
+                            AÇIK
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-1 block text-xs text-muted-foreground">
+                        Hikâye yetişkin temalara girer: tutkulu ilişkiler, aldatma, alkol ve bağımlılık,
+                        şiddet, suç, borç ve yas — sansürsüz ama edebî bir dille, pornografik tasvir
+                        olmadan anlatılır.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+
 
                 <CharacterField
                   label="Meslek"
