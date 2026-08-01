@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Sparkles,
@@ -18,11 +18,13 @@ import {
   TrendingDown,
   Minus,
   Check,
+  Fingerprint,
 } from "lucide-react";
 
 import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
 import { DeltaChips } from "@/components/DeltaChips";
+import { MatureToggle } from "@/components/MatureToggle";
 import {
   generateLifeEvent,
   suggestField,
@@ -32,35 +34,7 @@ import {
   type LifeStats,
   type LifeTurn,
 } from "@/lib/life.functions";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 
-const MATURE_WARN_KEY = "hs-mature-warning-hidden";
-
-function matureWarnSkipped() {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(MATURE_WARN_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
-function skipMatureWarn() {
-  try {
-    window.localStorage.setItem(MATURE_WARN_KEY, "1");
-  } catch {
-    /* yoksay */
-  }
-}
 
 
 
@@ -122,8 +96,6 @@ function Index() {
   const [custom, setCustom] = useState("");
   const [issues, setIssues] = useState<FieldIssues>({});
   const [mature, setMature] = useState(false);
-  const [matureWarnOpen, setMatureWarnOpen] = useState(false);
-  const [dontShowMatureWarn, setDontShowMatureWarn] = useState(false);
 
 
   const [form, setForm] = useState({
@@ -390,51 +362,12 @@ function Index() {
                   </div>
                 </fieldset>
 
-                <div className="md:col-span-2">
-                  <label
-                    className={`flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--color-ring)] ${
-                      mature ? "border-primary bg-primary/10" : "border-border hover:bg-secondary"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={mature}
-                      onChange={(e) => {
-                        if (!e.target.checked) {
-                          setMature(false);
-                          return;
-                        }
-                        if (matureWarnSkipped()) setMature(true);
-                        else setMatureWarnOpen(true);
-                      }}
-                      className="sr-only"
-                    />
+                <MatureToggle
+                  className="md:col-span-2"
+                  value={mature}
+                  onChange={setMature}
+                />
 
-                    <span
-                      aria-hidden
-                      className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border ${
-                        mature ? "border-primary bg-primary text-primary-foreground" : "border-muted-foreground"
-                      }`}
-                    >
-                      {mature && <Check className="size-3.5" />}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold">
-                        Yetişkin modu (18+)
-                        {mature && (
-                          <span className="ml-2 rounded-md bg-primary px-1.5 py-0.5 text-[11px] font-bold text-primary-foreground">
-                            AÇIK
-                          </span>
-                        )}
-                      </span>
-                      <span className="mt-1 block text-xs text-muted-foreground">
-                        Hikâye yetişkin temalara girer: tutkulu ilişkiler, aldatma, alkol ve bağımlılık,
-                        şiddet, suç, borç ve yas — sansürsüz ama edebî bir dille, pornografik tasvir
-                        olmadan anlatılır.
-                      </span>
-                    </span>
-                  </label>
-                </div>
 
 
                 <CharacterField
@@ -487,57 +420,28 @@ function Index() {
                 </p>
               )}
             </section>
+
+            <Link
+              to="/dedektif"
+              className="panel mt-5 flex min-h-11 items-center justify-between gap-3 p-5 transition-colors hover:bg-secondary/50"
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 text-sm font-bold">
+                  <Fingerprint className="size-4 shrink-0 text-primary" aria-hidden />
+                  Dedektif modu
+                </span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Bir suç seç, sorgu odasında karşına oturan dedektifi ikna et: ya serbest kalırsın
+                  ya hapse girersin.
+                </span>
+              </span>
+              <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+            </Link>
           </main>
         </div>
-
-        <AlertDialog open={matureWarnOpen} onOpenChange={setMatureWarnOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Yetişkin modu (18+) açılıyor</AlertDialogTitle>
-              <AlertDialogDescription>
-                Bu mod açıkken hikâye yetişkin temalara sansürsüz girer: tutkulu ilişkiler ve
-                cinsellik, aldatma, alkol ve bağımlılık, kumar, borç, şiddet, suç, hastalık, ölüm ve
-                yas. Ağır bir dil ve ara sıra küfür geçebilir. Yalnızca 18 yaşından büyükseniz
-                devam edin.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--color-ring)]">
-              <input
-                type="checkbox"
-                checked={dontShowMatureWarn}
-                onChange={(e) => setDontShowMatureWarn(e.target.checked)}
-                className="sr-only"
-              />
-              <span
-                aria-hidden
-                className={`grid size-5 shrink-0 place-items-center rounded-md border ${
-                  dontShowMatureWarn
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground"
-                }`}
-              >
-                {dontShowMatureWarn && <Check className="size-3.5" />}
-              </span>
-              Bir daha gösterme
-            </label>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDontShowMatureWarn(false)}>
-                Vazgeç
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (dontShowMatureWarn) skipMatureWarn();
-                  setMature(true);
-                }}
-              >
-                18+ içeriği kabul ediyorum
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </div>
-
     );
+
   }
 
   // ---------- Game ----------
