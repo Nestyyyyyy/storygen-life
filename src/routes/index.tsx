@@ -365,9 +365,17 @@ function Index() {
                     <input
                       type="checkbox"
                       checked={mature}
-                      onChange={(e) => setMature(e.target.checked)}
+                      onChange={(e) => {
+                        if (!e.target.checked) {
+                          setMature(false);
+                          return;
+                        }
+                        if (matureWarnSkipped()) setMature(true);
+                        else setMatureWarnOpen(true);
+                      }}
                       className="sr-only"
                     />
+
                     <span
                       aria-hidden
                       className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border ${
