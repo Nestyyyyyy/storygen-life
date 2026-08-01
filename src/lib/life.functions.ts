@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { askAi, clamp, fallbackSuggestion, FIELD_TR, openingSeed } from "./life.server";
+import { askAi, clamp, fallbackSuggestion, FIELD_TR, localLifeEvent, openingSeed } from "./life.server";
 
 const StatsSchema = z.object({
   happiness: z.number(),
@@ -234,7 +234,21 @@ Bu açılış ŞU tohuma göre kurulsun (birebir kopyalama, ilham al):
 Kariyerle başlama; kişisel/duygusal bir anla başla. Daha önce yazdığın hiçbir açılışa benzemesin.
 outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
-    const parsed = await askAi(system, userMsg, action ? 1 : 1.2);
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = await askAi(system, userMsg, action ? 1 : 1.2);
+    } catch {
+      // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel hikâye motoru devralır.
+      parsed = localLifeEvent({
+        occupation: character.occupation,
+        goal: character.goal,
+        action,
+        outcome,
+        forced,
+        mature,
+        usedFacts: facts,
+      }) as unknown as Record<string, unknown>;
+    }
 
 
     const kind: LifeTurn["kind"] = forced ? "forced" : "choice";

@@ -266,3 +266,185 @@ export function fallbackSuggestion(field: string, hint?: string) {
   return value;
 }
 
+
+// ============================================================
+//  YEREL HİKÂYE MOTORU — yapay zekâ / API gerektirmez
+//  Şablon + rastgele doldurma ile hikâye sahnesi üretir.
+// ============================================================
+
+export type LocalParsed = {
+  title: string;
+  narrative: string;
+  outcomeText: string;
+  choices: { label: string; recommended: boolean }[];
+  effects: { happiness: number; wealth: number; career: number; stress: number };
+  ageDelta: number;
+  facts: string[];
+};
+
+const rnd = (n: number) => Math.floor(Math.random() * n);
+const one = <T,>(a: T[]): T => a[rnd(a.length)];
+const between = (lo: number, hi: number) => lo + rnd(hi - lo + 1);
+
+const NAMES_F = ["Elif", "Zeynep", "Selin", "Aslı", "Nur", "Ece", "Melis", "Derya", "Yasemin", "Ceren", "Pınar", "İrem", "Sude", "Berrin", "Hande"];
+const NAMES_M = ["Emre", "Can", "Mert", "Kaan", "Barış", "Onur", "Serkan", "Tolga", "Umut", "Kerem", "Burak", "Efe", "Cenk", "Levent", "Tarık"];
+const PETS = ["Şila", "Tarçın", "Boncuk", "Duman", "Zeytin", "Karamel", "Paşa", "Fındık"];
+const PLACES = [
+  "eski bir apartmanın merdiveninde",
+  "yağmurlu bir sokakta",
+  "küçük bir kafenin köşesinde",
+  "kalabalık bir otobüs durağında",
+  "sahil kenarında",
+  "hareketli bir pazar yerinde",
+  "loş bir hastane koridorunda",
+  "şehir dışına giden trende",
+  "mahalle bakkalının önünde",
+  "tanıdık bir çay bahçesinde",
+];
+const TIMES = ["sabahın erken saatinde", "öğle vakti", "akşamüstü", "gece yarısına doğru", "bir hafta sonu", "bayram sabahı"];
+
+const aName = () => (Math.random() < 0.5 ? one(NAMES_F) : one(NAMES_M));
+const fill = (s: string, v: Record<string, string>) => s.replace(/\{(\w+)\}/g, (_, k) => v[k] ?? "");
+
+type Scene = {
+  t: string;
+  n: string;
+  c: [string, string, string];
+  rec: number;
+  bias: "happiness" | "wealth" | "career";
+  fact?: string;
+  mature?: boolean;
+};
+
+// Normal sahneler (her modda kullanılır)
+const NORMAL_SCENES: Scene[] = [
+  { t: "Beklenmedik bir mesaj", n: "{time} telefonun titriyor: yıllardır konuşmadığın {name} yazmış. \"Seni görmem lazım\" diyor, başka bir şey demiyor.", c: ["Hemen buluşmayı kabul et", "Önce ne istediğini sor", "Görmezden gel, sonra bakarsın"], rec: 1, bias: "happiness", fact: "{name} ile yıllar sonra yeniden bağ kuruldu." },
+  { t: "Kapındaki komşu", n: "Yeni komşun {name}, {place} sana rastlıyor ve bir iyilik istiyor: birkaç günlüğüne {pet} adlı kedisine bakabilir misin?", c: ["Seve seve kabul et", "Sadece bu seferlik derim", "Kibarca reddet"], rec: 0, bias: "happiness", fact: "Komşu {name}'in kedisi {pet}." },
+  { t: "İşte bir fırsat", n: "{job} olarak emeğin nihayet görülüyor; sana daha büyük ama riskli bir sorumluluk öneriyorlar. Kabul edersen her şey değişebilir.", c: ["Riski göze al, kabul et", "Şartları pazarlık et", "Şimdilik güvende kal"], rec: 1, bias: "career" },
+  { t: "Cüzdandaki delik", n: "Ay sonu yaklaşırken hesaplar tutmuyor. Bir arkadaşın kısa vadeli, cazip ama tuhaf bir 'yatırım' öneriyor.", c: ["Küçük bir miktarla dene", "Detaylıca araştır önce", "Uzak dur bu işten"], rec: 2, bias: "wealth" },
+  { t: "Sağlık uyarısı", n: "Son günlerde sürekli yorgunsun. {place} nefesin daralıyor. İçinden bir ses 'bir doktora görün' diyor.", c: ["Hemen randevu al", "Biraz dinlenip beklerim", "Görmezden gel, geçer"], rec: 0, bias: "happiness" },
+  { t: "Eski bir dost", n: "{time} {name} ile karşılaşıyorsun. Bir zamanlar çok yakındınız; şimdi araya mesafe girmiş. Gözlerinde bir pişmanlık var.", c: ["İlk adımı sen at", "Nazikçe selam verip geç", "Soğuk davran"], rec: 0, bias: "happiness", fact: "Eski dost {name} yeniden hayatında." },
+  { t: "Hedefe bir adım", n: "\"{goal}\" hayaline yaklaşmak için küçük ama korkutucu bir fırsat çıkıyor karşına. İlk adımı atmak sana kalmış.", c: ["Cesurca ilk adımı at", "Bir plan yapıp öyle başla", "Henüz hazır değilim de"], rec: 1, bias: "career" },
+  { t: "Küçük bir kaçamak", n: "İş çıkışı {place} kendini yorgun buluyorsun. Bir hafta sonu kaçamağı için son dakika ucuz bir bilet var.", c: ["Çantanı topla ve git", "Bütçeni hesapla önce", "Bu sefer kal, sonra"], rec: 0, bias: "happiness" },
+  { t: "Bir hobinin çağrısı", n: "Yıllar önce bıraktığın bir uğraş bugün {place} yeniden karşına çıkıyor. Parmakların kaşınıyor.", c: ["Yeniden başla, geç değil", "Ufak bir deneme yap", "Nostaljiyle geç, bırak"], rec: 0, bias: "happiness" },
+  { t: "Aile masası", n: "Aile yemeğinde eski bir mesele yeniden açılıyor. {name} senden taraf tutmanı bekliyor, masa geriliyor.", c: ["Açık açık fikrini söyle", "Ortayı bulmaya çalış", "Sessiz kal, karışma"], rec: 1, bias: "happiness" },
+  { t: "Sokakta bir tesadüf", n: "{time} {place} yerde bir cüzdan buluyorsun. İçinde epey para ve bir kimlik var: {name}.", c: ["Sahibini bulup teslim et", "Karakola bırak", "Kimse görmedi, cebe at"], rec: 0, bias: "wealth", fact: "Cüzdanını bulduğun {name} ile tanışıldı." },
+  { t: "Komşu apartmanın gürültüsü", n: "Gecenin bir yarısı üst kattan sesler geliyor. Ertesi gün {name} özür dilemek için kapını çalıyor.", c: ["Anlayışla karşıla", "Sınırları nazikçe çiz", "Şikâyet edeceğini söyle"], rec: 0, bias: "happiness" },
+];
+
+// Yetişkin modu sahneleri (18+) — sert dille, grafik tasvir yok
+const MATURE_SCENES: Scene[] = [
+  { t: "Gece yarısı bir teklif", n: "{time} {name} sana açılıyor; aranızdaki gerilim uzun süredir belliydi. Kalbin de aklın da farklı şeyler söylüyor.", c: ["Duygularının peşinden git", "Önce dürüstçe konuş", "Geri çekil, karmaşık bu"], rec: 1, bias: "happiness", mature: true, fact: "{name} ile ilişki yeni bir evreye girdi." },
+  { t: "Son kadeh", n: "Zor bir haftanın ardından içki masasında kendini kaptırıyorsun. Bir kadeh daha, bir tane daha derken sabah yaklaşıyor.", c: ["Kendine dur de, kalk", "Son bir tane, sonra ev", "Bırak sürüklensin gece"], rec: 0, bias: "happiness", mature: true },
+  { t: "Tefecinin gölgesi", n: "Borçlar birikti; kapıya dayanan {name} 'tatlı dille' parasını istiyor. Sesindeki tehdit gizli değil.", c: ["Zaman iste, plan yap", "Bir kısmını hemen öde", "Kaç, yüzleşme"], rec: 1, bias: "wealth", mature: true },
+  { t: "Kolay para", n: "Tanıdık biri, karanlık ama iyi para getiren bir işe seni ortak etmek istiyor. Yasadışı olduğu ortada.", c: ["Reddet, bulaşma", "Sadece bir kere dene", "İçini didikleyip düşün"], rec: 0, bias: "wealth", mature: true },
+  { t: "Kıskançlık krizi", n: "Sevdiğin kişinin telefonunda bir mesaj görüyorsun. İçini kemiren şüphe büyüyor, elin ekranın üstünde duruyor.", c: ["Açıkça konuş, sor", "Görmezden gelmeye çalış", "Sessizce takibe geç"], rec: 0, bias: "happiness", mature: true },
+];
+
+// Kaderin belirlediği (seçimsiz) sahneler
+const FORCED_SCENES: { t: string; n: string; go: string; bias: "happiness" | "wealth" | "career"; mature?: boolean }[] = [
+  { t: "Beklenmedik haber", n: "Telefon çalıyor; {name}'den kötü bir haber geliyor. Bir anda her şey ağırlaşıyor, ama hayat durmuyor.", go: "Sabahı bekle", bias: "happiness" },
+  { t: "Kaza", n: "{time} {place} küçük bir kaza atlatıyorsun. Ucuz kurtuldun ama sarsıldın.", go: "Toparlanmaya çalış", bias: "happiness" },
+  { t: "Kapı dışarı", n: "Beklemediğin bir anda işine son veriliyor. \"Küçülme\" diyorlar; sen ne diyeceğini bilemiyorsun.", go: "Yeni bir yol ara", bias: "career" },
+  { t: "Zorunlu masraf", n: "Evde bir şey bozuluyor ve tamiri hiç ucuz değil. Bütçen bu ay iyice zorlanıyor.", go: "Hesapları yeniden yap", bias: "wealth" },
+  { t: "Bürokrasi duvarı", n: "Bir evrak eksikliği yüzünden işlerin haftalarca sürüncemede kalacak. Elinden bir şey gelmiyor.", go: "Sıranı beklemeye başla", bias: "career" },
+  { t: "Ani hastalık", n: "Gece ateşin çıkıyor; birkaç gün yatmak zorunda kalıyorsun. Planların ertelenmek zorunda.", go: "İyileşmeyi bekle", bias: "happiness", mature: true },
+];
+
+const OUTCOME_TEXT: Record<"success" | "partial" | "failure", string[]> = {
+  success: [
+    "Denedin ve bu kez şans senden yanaydı.",
+    "Beklediğinden iyi gitti; küçük bir pürüz kalsa da kazançlı çıktın.",
+    "İşe yaradı — emeğinin karşılığını aldın.",
+    "Doğru anda doğru adımı attın, sonuç yüzünü güldürdü.",
+  ],
+  partial: [
+    "İstediğinin bir kısmını aldın, gerisi elinden kayıp gitti.",
+    "Yarım bir zafer: bir şey kazandın, bir şey kaybettin.",
+    "Ne tam oldu ne de tam bozuldu; bedelini ödeyerek ilerledin.",
+    "Kısmen yürüdü ama arkasında bir soru işareti bıraktı.",
+  ],
+  failure: [
+    "Bu sefer işler ters gitti.",
+    "Umduğun olmadı; geriye buruk bir tat kaldı.",
+    "Plan tutmadı, canın epey yandı.",
+    "Geri tepti — bir süre bunun ağırlığını taşıyacaksın.",
+  ],
+};
+
+const FORCED_CONTINUE = ["Devam et", "Sabahı bekle", "Toparlan ve yürü", "Ne olacağını gör"];
+
+function makeEffects(
+  outcome: "success" | "partial" | "failure" | "neutral",
+  bias: "happiness" | "wealth" | "career",
+) {
+  const e = { happiness: 0, wealth: 0, career: 0, stress: 0 };
+  if (outcome === "neutral") return e;
+  if (outcome === "success") {
+    e[bias] += between(6, 14);
+    e.happiness += between(1, 5);
+    e.stress -= between(2, 7);
+  } else if (outcome === "partial") {
+    e[bias] += between(3, 8);
+    e.wealth -= between(0, 4);
+    e.stress += between(2, 6);
+  } else {
+    e[bias] -= between(5, 12);
+    e.happiness -= between(3, 8);
+    e.stress += between(5, 11);
+  }
+  return e;
+}
+
+export function localLifeEvent(a: {
+  occupation: string;
+  goal: string;
+  action?: string;
+  outcome: "success" | "partial" | "failure" | "neutral";
+  forced: boolean;
+  mature: boolean;
+  usedFacts: string[];
+}): LocalParsed {
+  const vars: Record<string, string> = {
+    name: aName(),
+    pet: one(PETS),
+    place: one(PLACES),
+    time: one(TIMES),
+    job: a.occupation || "işini arayan biri",
+    goal: a.goal || "bir hayali",
+  };
+  const opening = !a.action;
+
+  if (a.forced) {
+    const s = one(a.mature ? FORCED_SCENES : FORCED_SCENES.filter((x) => !x.mature));
+    return {
+      title: (s.mature && a.mature ? "18+ " : "") + fill(s.t, vars),
+      narrative: fill(s.n, vars),
+      outcomeText: opening ? "" : one(OUTCOME_TEXT[a.outcome === "neutral" ? "partial" : a.outcome]),
+      choices: [{ label: fill(one(FORCED_CONTINUE), vars), recommended: true }],
+      effects: makeEffects(a.outcome === "neutral" ? "failure" : a.outcome, s.bias),
+      ageDelta: Math.random() < 0.5 ? 1 : 0,
+      facts: [],
+    };
+  }
+
+  const pool = a.mature ? [...NORMAL_SCENES, ...MATURE_SCENES] : NORMAL_SCENES;
+  const s = one(pool);
+  const facts: string[] = [];
+  if (s.fact) {
+    const f = fill(s.fact, vars);
+    if (!a.usedFacts.includes(f)) facts.push(f);
+  }
+  const choices = s.c.map((label, i) => ({ label: fill(label, vars), recommended: i === s.rec }));
+
+  return {
+    title: (s.mature ? "18+ " : "") + fill(s.t, vars),
+    narrative: fill(s.n, vars),
+    outcomeText: opening ? "" : one(OUTCOME_TEXT[a.outcome === "neutral" ? "partial" : a.outcome]),
+    choices,
+    effects: opening ? makeEffects("neutral", s.bias) : makeEffects(a.outcome, s.bias),
+    ageDelta: opening ? 0 : Math.random() < 0.75 ? 0 : 1,
+    facts,
+  };
+}
+

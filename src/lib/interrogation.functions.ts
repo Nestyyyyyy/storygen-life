@@ -6,6 +6,7 @@ import {
   clampMeter,
   fallbackCrime,
   judgeAnswer,
+  localInterrogationTurn,
   makeInterrogator,
   type AnswerKind,
   type Interrogator,
@@ -103,11 +104,13 @@ export const interrogate = createServerFn({ method: "POST" })
 
     let meters: Meters = { ...data.meters };
     let judgeNote = "";
+    let judgeResult: "iyi" | "kötü" | "karışık" | null = null;
     let delta: Meters = { flirt: 0, suspicion: 0, empathy: 0 };
 
     if (!first) {
       const j = judgeAnswer(data.answerKind, meters, interrogator, data.playerGender);
       judgeNote = j.note;
+      judgeResult = j.result;
       const next: Meters = {
         flirt: clampMeter(meters.flirt + j.delta.flirt),
         suspicion: clampMeter(meters.suspicion + j.delta.suspicion),
@@ -183,8 +186,14 @@ ${statusRule}`;
     let parsed: Record<string, unknown> = {};
     try {
       parsed = await askAi(system, user, 1.05);
-    } catch (e) {
-      throw e instanceof Error ? e : new Error("Sorgu sürdürülemedi.");
+    } catch {
+      // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel sorgu motoru devralır.
+      parsed = localInterrogationTurn({
+        interrogator,
+        judgeResult,
+        status,
+        turnNo,
+      }) as unknown as Record<string, unknown>;
     }
 
     const rawOptions = Array.isArray(parsed.options) ? parsed.options : [];

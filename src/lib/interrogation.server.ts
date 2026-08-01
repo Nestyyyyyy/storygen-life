@@ -197,3 +197,102 @@ export function judgeAnswer(
 
   return { result, delta: d, note };
 }
+
+
+// ============================================================
+//  YEREL SORGU MOTORU — yapay zekâ / API gerektirmez
+// ============================================================
+
+const REACTIONS: Record<"iyi" | "kötü" | "karışık", string[]> = {
+  iyi: [
+    "{name} bir an duraksıyor; kaleminin ucu kâğıtta bekliyor. Cevabın işine gelmemiş gibi.",
+    "Gözlerini kısıyor, sonra dosyayı kapatıp sandalyesine yaslanıyor. Puan aldın ama belli etmiyor.",
+    "{name} kısa bir 'hmm' çekiyor. İlk kez tereddüt ettiğini görüyorsun.",
+  ],
+  kötü: [
+    "{name} dosyadan bir fotoğraf çıkarıp masaya vuruyor: \"Bunu nasıl açıklayacaksın?\"",
+    "Dudağının kenarı alaycı bir gülümsemeyle kıvrılıyor. \"İşte şimdi yakaladım seni.\"",
+    "{name} sandalyesini gıcırdatarak öne eğiliyor; sesi bıçak gibi: \"Bir daha dene.\"",
+  ],
+  karışık: [
+    "{name} not alıyor, yüzünden hiçbir şey okunmuyor.",
+    "Kısa bir sessizlik. Duvar saatinin sesi odayı dolduruyor.",
+    "{name} çayından bir yudum alıp seni süzüyor. Ne düşündüğü belli değil.",
+  ],
+};
+
+const QUESTIONS = [
+  "O gece saat kaçta evdeydin? Komşun seni {time} dışarıda gördüğünü söylüyor.",
+  "Telefon kayıtlarına baktık. {time} kimi aradın?",
+  "Olay yerindeki kamera görüntülerinde sana çok benzeyen biri var. Ne diyeceksin?",
+  "Banka hesabına geçen hafta giren o para nereden geldi?",
+  "{witness} seni olay yerinin yakınında gördüğünü söylüyor. Yalan mı söylüyor?",
+  "Ailene bu durumu nasıl açıklayacaksın? Onlar da ifade verecek, biliyorsun.",
+  "Elindeki o izler nasıl oldu? Doktor raporu istememi ister misin?",
+  "Ortağın her şeyi anlattı bile. Sen hâlâ neden susuyorsun?",
+  "Aracın o gece nerede park halindeydi? Plaka kayıtları bizde.",
+  "Bu işten kazancın ne olacaktı? Kim seni buna ikna etti?",
+];
+
+const OPTION_SETS: { label: string; kind: AnswerKind }[][] = [
+  [
+    { label: "O gece evdeydim, kimse görmedi", kind: "yalan" },
+    { label: "Doğruyu söyle: oradaydın", kind: "doğru" },
+    { label: "Gülümseyip gözlerine bak", kind: "flört" },
+    { label: "Zor bir dönemden geçtiğini anlat", kind: "duygu" },
+  ],
+  [
+    { label: "Bir arkadaşımı aradım, alakası yok", kind: "yalan" },
+    { label: "Her şeyi baştan anlat", kind: "doğru" },
+    { label: "\"Sesiniz çok sakinleştirici\" de", kind: "flört" },
+    { label: "Sessiz kalma hakkını kullan", kind: "sessiz" },
+  ],
+  [
+    { label: "Kameradaki kişi ben değilim", kind: "yalan" },
+    { label: "Kısmen doğruyu kabul et", kind: "doğru" },
+    { label: "Ailenden ve borçlarından bahset", kind: "duygu" },
+    { label: "Tek kelime etme, bekle", kind: "sessiz" },
+  ],
+];
+
+const VERDICT_FREED = [
+  "{name} dosyayı kapatıp kapıyı gösteriyor: \"Gidebilirsin... şimdilik.\" Koridorda attığın her adımda sırtında bakışlarını hissediyorsun. Serbestsin ama bu dosya rafta seni bekliyor.",
+  "Saatler sonra kapı açılıyor. \"Delil yetersiz\" diyor {name}, sesinde hayal kırıklığı var. Dışarıda gün yeni doğuyor; ciğerlerine çektiğin hava hiç bu kadar tatlı gelmemişti.",
+];
+const VERDICT_JAILED = [
+  "{name} ayağa kalkıp tek cümle söylüyor: \"Tutuklusun.\" Bileklerindeki soğuk metal, duyduğun son net his oluyor. Seni koridorun sonundaki demir kapıya doğru götürüyorlar.",
+  "\"Yeterince dinledim\" diyor {name} ve dosyayı kapatıyor. İtiraz edecek gücün kalmıyor; nezarethanenin ışığı gözünü alıyor. Bu gece uzun olacak.",
+];
+
+export function localInterrogationTurn(a: {
+  interrogator: Interrogator;
+  judgeResult: "iyi" | "kötü" | "karışık" | null; // null = ilk tur
+  status: "ongoing" | "freed" | "jailed";
+  turnNo: number;
+}): { reaction: string; question: string; options: { label: string; kind: AnswerKind }[]; verdictText: string; facts: string[] } {
+  const p = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+  const vars: Record<string, string> = {
+    name: a.interrogator.name,
+    time: p(["gece 23 sularında", "sabaha karşı", "akşam saatlerinde"]),
+    witness: p(["Bir görgü tanığı", "Karşı bakkalın sahibi", "Gece bekçisi"]),
+  };
+  const f = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+
+  if (a.status !== "ongoing") {
+    return {
+      reaction: f(p(REACTIONS[a.judgeResult ?? "karışık"])),
+      question: "",
+      options: [],
+      verdictText: f(p(a.status === "freed" ? VERDICT_FREED : VERDICT_JAILED)),
+      facts: [],
+    };
+  }
+
+  return {
+    reaction: a.judgeResult ? f(p(REACTIONS[a.judgeResult])) : "",
+    question: f(QUESTIONS[(a.turnNo + Math.floor(Math.random() * 3)) % QUESTIONS.length]),
+    options: p(OPTION_SETS),
+    verdictText: "",
+    facts: [],
+  };
+}
