@@ -32,6 +32,37 @@ import {
   type LifeStats,
   type LifeTurn,
 } from "@/lib/life.functions";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+const MATURE_WARN_KEY = "hs-mature-warning-hidden";
+
+function matureWarnSkipped() {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(MATURE_WARN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function skipMatureWarn() {
+  try {
+    window.localStorage.setItem(MATURE_WARN_KEY, "1");
+  } catch {
+    /* yoksay */
+  }
+}
+
+
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -91,6 +122,9 @@ function Index() {
   const [custom, setCustom] = useState("");
   const [issues, setIssues] = useState<FieldIssues>({});
   const [mature, setMature] = useState(false);
+  const [matureWarnOpen, setMatureWarnOpen] = useState(false);
+  const [dontShowMatureWarn, setDontShowMatureWarn] = useState(false);
+
 
   const [form, setForm] = useState({
     age: "24",
@@ -365,9 +399,17 @@ function Index() {
                     <input
                       type="checkbox"
                       checked={mature}
-                      onChange={(e) => setMature(e.target.checked)}
+                      onChange={(e) => {
+                        if (!e.target.checked) {
+                          setMature(false);
+                          return;
+                        }
+                        if (matureWarnSkipped()) setMature(true);
+                        else setMatureWarnOpen(true);
+                      }}
                       className="sr-only"
                     />
+
                     <span
                       aria-hidden
                       className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-md border ${
@@ -447,7 +489,54 @@ function Index() {
             </section>
           </main>
         </div>
+
+        <AlertDialog open={matureWarnOpen} onOpenChange={setMatureWarnOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Yetişkin modu (18+) açılıyor</AlertDialogTitle>
+              <AlertDialogDescription>
+                Bu mod açıkken hikâye yetişkin temalara sansürsüz girer: tutkulu ilişkiler ve
+                cinsellik, aldatma, alkol ve bağımlılık, kumar, borç, şiddet, suç, hastalık, ölüm ve
+                yas. Ağır bir dil ve ara sıra küfür geçebilir. Yalnızca 18 yaşından büyükseniz
+                devam edin.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--color-ring)]">
+              <input
+                type="checkbox"
+                checked={dontShowMatureWarn}
+                onChange={(e) => setDontShowMatureWarn(e.target.checked)}
+                className="sr-only"
+              />
+              <span
+                aria-hidden
+                className={`grid size-5 shrink-0 place-items-center rounded-md border ${
+                  dontShowMatureWarn
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-muted-foreground"
+                }`}
+              >
+                {dontShowMatureWarn && <Check className="size-3.5" />}
+              </span>
+              Bir daha gösterme
+            </label>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDontShowMatureWarn(false)}>
+                Vazgeç
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={() => {
+                  if (dontShowMatureWarn) skipMatureWarn();
+                  setMature(true);
+                }}
+              >
+                18+ içeriği kabul ediyorum
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
+
     );
   }
 
