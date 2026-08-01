@@ -448,55 +448,26 @@ function Index() {
                 </p>
               )}
             </section>
+
+            <Link
+              to="/dedektif"
+              className="panel mt-5 flex min-h-11 items-center justify-between gap-3 p-5 transition-colors hover:bg-secondary/50"
+            >
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 text-sm font-bold">
+                  <Fingerprint className="size-4 shrink-0 text-primary" aria-hidden />
+                  Dedektif modu
+                </span>
+                <span className="mt-1 block text-xs text-muted-foreground">
+                  Bir suç seç, sorgu odasında karşına oturan dedektifi ikna et: ya serbest kalırsın
+                  ya hapse girersin.
+                </span>
+              </span>
+              <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+            </Link>
           </main>
         </div>
 
-        <AlertDialog open={matureWarnOpen} onOpenChange={setMatureWarnOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Yetişkin modu (18+) açılıyor</AlertDialogTitle>
-              <AlertDialogDescription>
-                Bu mod açıkken hikâye yetişkin temalara sansürsüz girer: tutkulu ilişkiler ve
-                cinsellik, aldatma, alkol ve bağımlılık, kumar, borç, şiddet, suç, hastalık, ölüm ve
-                yas. Ağır bir dil ve ara sıra küfür geçebilir. Yalnızca 18 yaşından büyükseniz
-                devam edin.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-border p-3 text-sm focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--color-ring)]">
-              <input
-                type="checkbox"
-                checked={dontShowMatureWarn}
-                onChange={(e) => setDontShowMatureWarn(e.target.checked)}
-                className="sr-only"
-              />
-              <span
-                aria-hidden
-                className={`grid size-5 shrink-0 place-items-center rounded-md border ${
-                  dontShowMatureWarn
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground"
-                }`}
-              >
-                {dontShowMatureWarn && <Check className="size-3.5" />}
-              </span>
-              Bir daha gösterme
-            </label>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={() => setDontShowMatureWarn(false)}>
-                Vazgeç
-              </AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (dontShowMatureWarn) skipMatureWarn();
-                  setMature(true);
-                }}
-              >
-                18+ içeriği kabul ediyorum
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      </div>
 
     );
   }
