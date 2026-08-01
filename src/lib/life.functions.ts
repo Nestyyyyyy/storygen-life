@@ -31,6 +31,7 @@ const InputSchema = z.object({
     )
     .default([]),
   facts: z.array(z.string()).default([]),
+  mature: z.boolean().default(false),
   action: z.string().optional(),
 });
 
