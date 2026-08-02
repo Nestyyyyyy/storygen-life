@@ -96,6 +96,7 @@ export async function askAi(system: string, user: string, temperature = 1) {
       return await askOne(cfg, system, user, temperature);
     } catch (e) {
       lastErr = e; // bu sağlayıcı olmadı; sıradakini dene
+      console.error(`[askAi] ${new URL(cfg.url).hostname} başarısız: ${e instanceof Error ? e.message : e}`);
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("Yapay zekâya ulaşılamadı.");
@@ -257,6 +258,10 @@ const HINT_TOPICS: { keys: string[]; jobs: string[] }[] = [
   { keys: ["ev", "temizlik", "tamir", "usta"], jobs: ["ev tadilat ustası", "kombi servisçisi", "çilingir", "ikinci el eşya dükkâncısı"] },
 ];
 
+// Kısa anahtarlar ("at", "ev"...) kelime içinde yanlış eşleşmesin (örn. "satranç" ≠ "at").
+export const keyMatch = (text: string, k: string) =>
+  k.length <= 3 ? new RegExp(`(^|[^a-zçğıöşüâî])${k}`, "u").test(text) : text.includes(k);
+
 function withHint(field: string, hint: string) {
   const h = hint.trim().replace(/\s+/g, " ").slice(0, 60);
   const low = h.toLocaleLowerCase("tr");
@@ -265,7 +270,7 @@ function withHint(field: string, hint: string) {
   if (field === "occupation") {
     // Önce ipucunun konusuna uyan gerçek meslekleri bul.
     const topic = HINT_TOPICS.find((t) =>
-      t.keys.some((k) => low.includes(k) || words.some((w) => w.length > 3 && k.startsWith(w))),
+      t.keys.some((k) => keyMatch(low, k) || words.some((w) => w.length > 3 && k.startsWith(w))),
     );
     if (topic) {
       const seenKey = `occupation:${topic.keys[0]}`;

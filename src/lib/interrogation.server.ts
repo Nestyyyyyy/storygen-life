@@ -51,10 +51,14 @@ function freshCrime(poolArr: string[], avoid: string[] = []) {
   return v;
 }
 
+// Kısa anahtarlar kelime içinde yanlış eşleşmesin (örn. "satranç" ≠ "at").
+const keyMatch = (text: string, k: string) =>
+  k.length <= 3 ? new RegExp(`(^|[^a-zçğıöşüâî])${k}`, "u").test(text) : text.includes(k);
+
 export function fallbackCrime(hint?: string, avoid: string[] = []) {
   if (hint && hint.trim().length > 1) {
     const low = hint.trim().toLocaleLowerCase("tr").replace(/\s+/g, " ").slice(0, 40);
-    const topic = CRIME_TOPICS.find((t) => t.keys.some((k) => low.includes(k)));
+    const topic = CRIME_TOPICS.find((t) => t.keys.some((k) => keyMatch(low, k)));
     if (topic) return freshCrime(topic.crimes, avoid);
     // İpucu hiçbir konuya uymadı: saçma kalıp üretme, havuzdan kaliteli bir suç ver.
     return freshCrime(CRIME_POOL, avoid);
