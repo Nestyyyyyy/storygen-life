@@ -219,7 +219,13 @@ function Detective() {
               to="/"
               className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm transition-colors hover:bg-secondary"
             >
-              <ArrowLeft className="size-4" aria-hidden /> Hayat Simülatörü
+              <ArrowLeft className="size-4" aria-hidden /> Ana sayfa
+            </Link>
+            <Link
+              to="/lifestory"
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm transition-colors hover:bg-secondary"
+            >
+              <Sparkles className="size-4" aria-hidden /> Hayat Simülatörü
             </Link>
           </aside>
 
@@ -404,7 +410,7 @@ function Detective() {
             to="/"
             className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm transition-colors hover:bg-secondary"
           >
-            <ArrowLeft className="size-4" aria-hidden /> Hayat Simülatörü
+            <ArrowLeft className="size-4" aria-hidden /> Ana sayfa
           </Link>
         </aside>
 
