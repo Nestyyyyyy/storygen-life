@@ -246,10 +246,11 @@ ${statusRule}
 
     if (status === "ongoing" && options.length < 4) {
       const filler: InterrogationOption[] = [
-        { label: "Hiçbir şey bilmediğini söyle", kind: "yalan" },
-        { label: "Kısmen doğruyu anlat", kind: "doğru" },
-        { label: "Gözlerine bakıp gülümse", kind: "flört" },
-        { label: "Neden bu hâle geldiğini anlat", kind: "duygu" },
+        { label: "O gece nerede olduğumu bile hatırlamıyorum, dersin", kind: "yalan" },
+        { label: "Anlatacağım ama sadece bildiğim kadarını anlatacağım", kind: "doğru" },
+        { label: "Gözlerinin içine bakıp yorgun yorgun gülümsersin", kind: "flört" },
+        { label: "Bu hâle nasıl geldiğini baştan anlatmaya başlarsın", kind: "duygu" },
+
       ];
       for (const f of filler) {
         if (options.length >= 4) break;
