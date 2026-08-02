@@ -5,52 +5,53 @@ export const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 // ya da eski Lovable ağ geçidi. Hangisi tanımlıysa o kullanılır.
 type AiConfig = { key: string; url: string; model: string; referer?: string; title?: string };
 
-export function aiConfig(): AiConfig {
-  // 1) Kendi sağlayıcın (öncelikli) — OpenAI uyumlu herhangi bir uç
-  //    OpenAI:     AI_BASE_URL=https://api.openai.com/v1/chat/completions           AI_MODEL=gpt-4o-mini
-  //    Gemini:     AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/chat/completions  AI_MODEL=gemini-2.0-flash
-  //    OpenRouter: AI_BASE_URL=https://openrouter.ai/api/v1/chat/completions        AI_MODEL=google/gemini-2.0-flash-exp
+// Tanımlı TÜM sağlayıcıları sırayla döndür: önce kendi anahtarın, sonra Lovable.
+// askAi bunları zincirleme dener; biri çalışırsa gerçek AI devrededir.
+export function aiConfigs(): AiConfig[] {
+  const list: AiConfig[] = [];
   const key =
     process.env.AI_API_KEY ??
     process.env.OPENAI_API_KEY ??
     process.env.OPENROUTER_API_KEY;
   if (key) {
-    return {
+    list.push({
       key,
       url: process.env.AI_BASE_URL ?? "https://api.openai.com/v1/chat/completions",
       model: process.env.AI_MODEL ?? "gpt-4o-mini",
       referer: process.env.AI_REFERER, // OpenRouter için opsiyonel
       title: process.env.AI_TITLE, // OpenRouter için opsiyonel
-    };
+    });
   }
-
-  // 2) Eski Lovable ağ geçidi (geriye dönük uyumluluk)
   const lovable = process.env.LOVABLE_API_KEY;
   if (lovable) {
-    return {
+    list.push({
       key: lovable,
       url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-      model: process.env.AI_MODEL ?? "google/gemini-3.1-pro-preview",
-    };
+      model: process.env.LOVABLE_MODEL ?? "google/gemini-3.1-pro-preview",
+    });
   }
-
-  throw new Error(
-    "AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ya da LOVABLE_API_KEY ayarla.",
-  );
+  return list;
 }
 
-// Geriye dönük uyumluluk için korunuyor.
+// Geriye dönük uyumluluk.
+export function aiConfig(): AiConfig {
+  const cfgs = aiConfigs();
+  if (!cfgs.length)
+    throw new Error(
+      "AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ya da LOVABLE_API_KEY ayarla.",
+    );
+  return cfgs[0];
+}
+
 export function aiKey() {
   return aiConfig().key;
 }
 
-export async function askAi(system: string, user: string, temperature = 1) {
-  const cfg = aiConfig();
+async function askOne(cfg: AiConfig, system: string, user: string, temperature: number) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${cfg.key}`,
   };
-  // OpenRouter isteğe bağlı başlıkları (tanımlıysa)
   if (cfg.referer) headers["HTTP-Referer"] = cfg.referer;
   if (cfg.title) headers["X-Title"] = cfg.title;
 
@@ -81,6 +82,23 @@ export async function askAi(system: string, user: string, temperature = 1) {
   } catch {
     return {} as Record<string, unknown>;
   }
+}
+
+export async function askAi(system: string, user: string, temperature = 1) {
+  const cfgs = aiConfigs();
+  if (!cfgs.length)
+    throw new Error(
+      "AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ya da LOVABLE_API_KEY ayarla.",
+    );
+  let lastErr: unknown;
+  for (const cfg of cfgs) {
+    try {
+      return await askOne(cfg, system, user, temperature);
+    } catch (e) {
+      lastErr = e; // bu sağlayıcı olmadı; sıradakini dene
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("Yapay zekâya ulaşılamadı.");
 }
 
 export const FIELD_TR: Record<string, string> = {
