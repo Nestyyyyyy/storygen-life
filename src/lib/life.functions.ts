@@ -94,10 +94,10 @@ ${avoid.length ? `Şunları tekrar etme: ${avoid.join(" | ")}` : ""}`;
       // "doktor (ustası)" gibi parantezli ekleri temizle.
       const value = raw.replace(/\s*\([^)]*\)/g, "").trim().slice(0, 80);
       if (value) return { value, source: "ai" };
-      return { value: fallbackSuggestion(field, hint), source: "local" };
+      return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
     } catch {
       // Kredi/ağ sorununda uygulama çökmesin: yerel öneri döndür.
-      return { value: fallbackSuggestion(field, hint), source: "local" };
+      return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
     }
   });
 
@@ -247,6 +247,7 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
         forced,
         mature,
         usedFacts: facts,
+        usedTitles: history.map((h) => h.event),
       }) as unknown as Record<string, unknown>;
     }
 

@@ -90,9 +90,9 @@ ${data.avoid.length ? `Şunları tekrar etme: ${data.avoid.join(" | ")}` : ""}`;
         .trim()
         .slice(0, 90);
       if (value) return { value, source: "ai" };
-      return { value: fallbackCrime(data.hint), source: "local" };
+      return { value: fallbackCrime(data.hint, data.avoid), source: "local" };
     } catch {
-      return { value: fallbackCrime(data.hint), source: "local" };
+      return { value: fallbackCrime(data.hint, data.avoid), source: "local" };
     }
   });
 
@@ -193,6 +193,7 @@ ${statusRule}`;
         judgeResult,
         status,
         turnNo,
+        usedQuestions: data.history.map((h) => h.question),
       }) as unknown as Record<string, unknown>;
     }
 

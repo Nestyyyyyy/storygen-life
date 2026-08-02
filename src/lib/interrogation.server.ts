@@ -41,24 +41,25 @@ const CRIME_TOPICS: { keys: string[]; crimes: string[] }[] = [
   { keys: ["hayvan", "kedi", "köpek", "at"], crimes: ["yarış atına doping verip yarış sonucunu değiştirmek", "değerli bir cins köpeği sahibinden kaçırmak"] },
 ];
 
-// Hiçbir konuya eşleşmeyen ipuçlarını suça dokuyan kalıplar.
-const CRIME_WEAVE = [
-  "{h} yüzünden çıkan kavgada birini yaralamak",
-  "{h} üzerinden yürüyen bir dolandırıcılık ağına karışmak",
-  "{h} ile ilgili sahte belge düzenlemek",
-  "{h} meselesi yüzünden bir eve gizlice girmek",
-  "{h} işine bulaşıp yakayı ele vermek",
-];
+// Yakın zamanda önerilen suçları hatırla: aynı öneri üst üste gelmesin.
+let recentCrimes: string[] = [];
+function freshCrime(poolArr: string[], avoid: string[] = []) {
+  const banned = [...recentCrimes, ...avoid];
+  const fresh = poolArr.filter((c) => !banned.includes(c));
+  const v = pick(fresh.length ? fresh : poolArr);
+  recentCrimes = [...recentCrimes, v].slice(-10);
+  return v;
+}
 
-export function fallbackCrime(hint?: string) {
+export function fallbackCrime(hint?: string, avoid: string[] = []) {
   if (hint && hint.trim().length > 1) {
     const low = hint.trim().toLocaleLowerCase("tr").replace(/\s+/g, " ").slice(0, 40);
     const topic = CRIME_TOPICS.find((t) => t.keys.some((k) => low.includes(k)));
-    if (topic) return pick(topic.crimes);
-    // Eşleşme yoksa ipucunu olduğu gibi geri verme; bir suç kalıbına doku.
-    return pick(CRIME_WEAVE).replace("{h}", low).slice(0, 90);
+    if (topic) return freshCrime(topic.crimes, avoid);
+    // İpucu hiçbir konuya uymadı: saçma kalıp üretme, havuzdan kaliteli bir suç ver.
+    return freshCrime(CRIME_POOL, avoid);
   }
-  return pick(CRIME_POOL);
+  return freshCrime(CRIME_POOL, avoid);
 }
 
 const RANKS = [
@@ -304,11 +305,24 @@ const VERDICT_JAILED = [
   "Son cevabınla birlikte odadaki hava değişiyor. {name} kalemi bırakıyor — bu, sorgunun bittiği anlamına geliyor ve bittiği yer senin lehine değil. \"Savcılık gerisini halleder,\" diyor. Götürülürken koridordaki panoda kendi fotoğrafını görüyorsun; kırmızı kalemle daire içine alınmış.",
 ];
 
+// Tepki metinlerinde art arda tekrarı engelle.
+const lastReaction: Record<string, string[]> = {};
+
+// Cevap seçeneği setlerinde art arda tekrarı engelle.
+let lastOptionSet = -1;
+function pickOptionSet() {
+  let i = Math.floor(Math.random() * OPTION_SETS.length);
+  if (OPTION_SETS.length > 1 && i === lastOptionSet) i = (i + 1) % OPTION_SETS.length;
+  lastOptionSet = i;
+  return OPTION_SETS[i];
+}
+
 export function localInterrogationTurn(a: {
   interrogator: Interrogator;
   judgeResult: "iyi" | "kötü" | "karışık" | null; // null = ilk tur
   status: "ongoing" | "freed" | "jailed";
   turnNo: number;
+  usedQuestions: string[];
 }): { reaction: string; question: string; options: { label: string; kind: AnswerKind }[]; verdictText: string; facts: string[] } {
   const p = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const vars: Record<string, string> = {
@@ -320,9 +334,17 @@ export function localInterrogationTurn(a: {
   };
   const f = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 
+  const pickReaction = (kind: "iyi" | "kötü" | "karışık") => {
+    const seen = lastReaction[kind] ?? [];
+    const pool = REACTIONS[kind].filter((r) => !seen.includes(r));
+    const v = p(pool.length ? pool : REACTIONS[kind]);
+    lastReaction[kind] = [...seen, v].slice(-(REACTIONS[kind].length - 1));
+    return f(v);
+  };
+
   if (a.status !== "ongoing") {
     return {
-      reaction: f(p(REACTIONS[a.judgeResult ?? "karışık"])),
+      reaction: a.judgeResult ? pickReaction(a.judgeResult) : "",
       question: "",
       options: [],
       verdictText: f(p(a.status === "freed" ? VERDICT_FREED : VERDICT_JAILED)),
@@ -330,10 +352,21 @@ export function localInterrogationTurn(a: {
     };
   }
 
+  // Bu sorguda daha önce sorulmuş soruları ele: aynı soru bir daha gelmesin.
+  // (İsim/saat dolguları değişse de şablonun en uzun sabit parçasıyla karşılaştırırız.)
+  const staticChunk = (tpl: string) => {
+    const parts = tpl.split(/\{\w+\}/).sort((x, y) => y.length - x.length);
+    return (parts[0] ?? tpl).slice(0, 30);
+  };
+  const candidates = QUESTIONS.filter(
+    (q) => !a.usedQuestions.some((u) => u.includes(staticChunk(q))),
+  );
+  const question = f(p(candidates.length ? candidates : QUESTIONS));
+
   return {
-    reaction: a.judgeResult ? f(p(REACTIONS[a.judgeResult])) : "",
-    question: f(QUESTIONS[(a.turnNo * 3 + Math.floor(Math.random() * 4)) % QUESTIONS.length]),
-    options: p(OPTION_SETS),
+    reaction: a.judgeResult ? pickReaction(a.judgeResult) : "",
+    question,
+    options: pickOptionSet(),
     verdictText: "",
     facts: [],
   };

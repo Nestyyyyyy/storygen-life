@@ -199,6 +199,16 @@ const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
 // Aynı öneriyi üst üste vermemek için alan başına son verilenleri hatırla.
 const recent: Record<string, string[]> = {};
 
+// Havuzdan, yakın zamanda verilmemiş taze bir öneri seç.
+function freshPick(field: string) {
+  const pool = FALLBACK_SUGGESTIONS[field] ?? FALLBACK_SUGGESTIONS.goal;
+  const seen = recent[field] ?? [];
+  const fresh = pool.filter((p) => !seen.includes(p));
+  const value = pick(fresh.length ? fresh : pool);
+  recent[field] = [...seen, value].slice(-Math.max(1, Math.floor(pool.length / 2)));
+  return value;
+}
+
 // İpucundaki konuyu gerçek meslek/uğraşlara bağlayan sözlük.
 // "doktor" → hekimlik dalları, "kundak" → yangın/suç dünyası vb.
 const HINT_TOPICS: { keys: string[]; jobs: string[] }[] = [
@@ -229,19 +239,6 @@ const HINT_TOPICS: { keys: string[]; jobs: string[] }[] = [
   { keys: ["ev", "temizlik", "tamir", "usta"], jobs: ["ev tadilat ustası", "kombi servisçisi", "çilingir", "ikinci el eşya dükkâncısı"] },
 ];
 
-// Hiçbir konuya eşleşmeyen ipuçlarını yine de anlamlı bir öneriye çeviren kalıplar.
-const OCC_WEAVE = [
-  "{h} üzerine çalışan serbest araştırmacı",
-  "{h} konusunu yazan taşra gazetecisi",
-  "{h} temalı bir dükkânın sahibi",
-  "{h} işleriyle uğraşan küçük esnaf",
-];
-const GOAL_WEAVE = [
-  "{h} ile ilgili büyük bir hayali gerçekleştirmek",
-  "Hayatını {h} etrafında yeniden kurmak",
-  "{h} konusunda ardında bir iz bırakmak",
-];
-
 function withHint(field: string, hint: string) {
   const h = hint.trim().replace(/\s+/g, " ").slice(0, 60);
   const low = h.toLocaleLowerCase("tr");
@@ -264,26 +261,25 @@ function withHint(field: string, hint: string) {
     const pool = FALLBACK_SUGGESTIONS.occupation ?? [];
     const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
     if (match) return match;
-    // Son çare: ipucunu bir kalıba dokuyup gerçek bir meslek gibi sun.
-    return pick(OCC_WEAVE).replace("{h}", low).slice(0, 80);
+    // İpucu hiçbir konuya uymadı: saçma kalıp üretme, havuzdan kaliteli bir öneri ver.
+    return freshPick("occupation");
   }
 
   const pool = FALLBACK_SUGGESTIONS[field] ?? [];
   const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
   if (match) return match;
   if (field === "personality") return `${h}, ${pick(["inatçı", "meraklı", "kırılgan", "esprili"])}`.slice(0, 80);
-  return pick(GOAL_WEAVE).replace("{h}", low).slice(0, 80);
+  return freshPick(field);
 }
 
 
-export function fallbackSuggestion(field: string, hint?: string) {
-  if (hint && hint.trim().length > 1) return withHint(field, hint);
-  const pool = FALLBACK_SUGGESTIONS[field] ?? FALLBACK_SUGGESTIONS.goal;
-  const seen = recent[field] ?? [];
-  const fresh = pool.filter((p) => !seen.includes(p));
-  const value = pick(fresh.length ? fresh : pool);
-  recent[field] = [...seen, value].slice(-Math.max(1, Math.floor(pool.length / 2)));
-  return value;
+export function fallbackSuggestion(field: string, hint?: string, avoid: string[] = []) {
+  // avoid: bu oturumda daha önce verilenler — aynıyı tekrarlama.
+  for (let i = 0; i < 6; i++) {
+    const value = hint && hint.trim().length > 1 ? withHint(field, hint) : freshPick(field);
+    if (!avoid.includes(value)) return value;
+  }
+  return freshPick(field);
 }
 
 
@@ -560,6 +556,16 @@ const FLAVOR = [
 
 const FORCED_CONTINUE = ["Devam et", "Derin bir nefes al ve yürü", "Sabahı bekle", "Toparlan; hayat sürüyor"];
 
+// Sonuç metinlerini sırayla döndür: aynı metin art arda gelmesin.
+const lastOutcome: Record<string, string[]> = {};
+function pickOutcomeText(kind: "success" | "partial" | "failure") {
+  const seen = lastOutcome[kind] ?? [];
+  const pool = OUTCOME_TEXT[kind].filter((t) => !seen.includes(t));
+  const v = one(pool.length ? pool : OUTCOME_TEXT[kind]);
+  lastOutcome[kind] = [...seen, v].slice(-(OUTCOME_TEXT[kind].length - 1));
+  return v;
+}
+
 function makeEffects(
   outcome: "success" | "partial" | "failure" | "neutral",
   bias: "happiness" | "wealth" | "career",
@@ -590,6 +596,7 @@ export function localLifeEvent(a: {
   forced: boolean;
   mature: boolean;
   usedFacts: string[];
+  usedTitles: string[];
 }): LocalParsed {
   const vars: Record<string, string> = {
     name: aName(),
@@ -602,13 +609,17 @@ export function localLifeEvent(a: {
   };
   const opening = !a.action;
   const effOutcome = a.outcome === "neutral" ? "partial" : a.outcome;
+  // Bu oynayışta zaten yaşanan sahneleri ele: tekrar yok (havuz bitene kadar).
+  const used = a.usedTitles.map((t) => t.replace(/^18\+\s*/, ""));
 
   if (a.forced) {
-    const s = one(a.mature ? FORCED_SCENES : FORCED_SCENES.filter((x) => !x.mature));
+    const fPool = a.mature ? FORCED_SCENES : FORCED_SCENES.filter((x) => !x.mature);
+    const fFresh = fPool.filter((x) => !used.includes(x.t));
+    const s = one(fFresh.length ? fFresh : fPool);
     return {
       title: (s.mature && a.mature ? "18+ " : "") + fill(s.t, vars),
       narrative: fill(s.n, vars),
-      outcomeText: opening ? "" : one(OUTCOME_TEXT[effOutcome]),
+      outcomeText: opening ? "" : pickOutcomeText(effOutcome),
       choices: [{ label: fill(s.go || one(FORCED_CONTINUE), vars), recommended: true }],
       effects: makeEffects(a.outcome === "neutral" ? "failure" : a.outcome, s.bias),
       ageDelta: Math.random() < 0.5 ? 1 : 0,
@@ -617,7 +628,8 @@ export function localLifeEvent(a: {
   }
 
   const pool = a.mature ? [...NORMAL_SCENES, ...MATURE_SCENES] : NORMAL_SCENES;
-  const s = one(pool);
+  const nFresh = pool.filter((x) => !used.includes(x.t));
+  const s = one(nFresh.length ? nFresh : pool);
   const facts: string[] = [];
   if (s.fact) {
     const f = fill(s.fact, vars);
@@ -629,7 +641,7 @@ export function localLifeEvent(a: {
   return {
     title: (s.mature ? "18+ " : "") + fill(s.t, vars),
     narrative,
-    outcomeText: opening ? "" : fill(one(OUTCOME_TEXT[effOutcome]), vars),
+    outcomeText: opening ? "" : fill(pickOutcomeText(effOutcome), vars),
     choices,
     effects: opening ? makeEffects("neutral", s.bias) : makeEffects(a.outcome, s.bias),
     ageDelta: opening ? 0 : Math.random() < 0.7 ? 0 : 1,
