@@ -182,8 +182,11 @@ export const generateLifeEvent = createServerFn({ method: "POST" })
     const { character, stats, history, action, facts, mature } = data;
 
     const matureRule = mature
-      ? `YETİŞKİN MODU AÇIK (18+): Karakter yetişkin ve tüm sahneler yetişkin dünyasında geçer. Ağır yetişkin temalardan kaçınma: tutku ve cinsellik (ima ve atmosferle, kapı kapanır — organ/eylem tasviri YOK), aldatma, ayrılık, kıskançlık, alkol ve bağımlılık, kumar, borç ve tefeci, şiddet, suç, hastalık, ölüm ve yas, iş yerinde taciz, ahlaki açmazlar. Dil yetişkin ve sert olabilir; ara sıra ağır bir küfür geçebilir. Yine de: pornografik/grafik cinsel tasvir, reşit olmayanların cinselleştirilmesi, cinsel şiddetin yüceltilmesi ve nefret söylemi kesinlikle YASAK. Yetişkinlere özel bir olay çıktığında "title" başına "18+ " ekle.`
+      ? `YETİŞKİN MODU AÇIK (18+): Karakter yetişkin ve sahneler yetişkin dünyasında geçer. Temalar sertleşsin: tutku ve arzu, yasak/gizli ilişki, aldatma ve kıskançlık, ayrılık, borç ve tefeci baskısı, kumar, alkol ve bağımlılık, suç ve şiddetin gölgesi, hastalık, ölüm ve yas, ahlaki açmazlar. Dil yetişkin ve keskin olabilir; yerinde bir küfür geçebilir.
+CİNSELLİK TEKNİĞİ: "kapı kapanır" — gerilim, bakış, temas eşiği, koku, nefes, sonraki sabahın sessizliğiyle anlat; sahnenin devamını okurun hayaline bırak. Organ, eylem veya pornografik/grafik tasvir kesinlikle YASAK. Reşit olmayanların cinselleştirilmesi, cinsel şiddetin yüceltilmesi ve nefret söylemi de YASAK.
+Yetişkinlere özel bir olay çıktığında "title" başına "18+ " ekle.`
       : `YETİŞKİN MODU KAPALI: cinsellik, ağır şiddet, uyuşturucu ve küfürden uzak dur; temalar yumuşak kalsın.`;
+
 
 
     // --- Kader zarı: sonucu model değil, sunucu belirler ---
