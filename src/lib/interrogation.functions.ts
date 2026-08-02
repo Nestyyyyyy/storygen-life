@@ -74,6 +74,10 @@ export const suggestCrime = createServerFn({ method: "POST" })
     const system = `Sen bir suç kurgu asistanısın. TÜRKÇE, kısa ve somut yaz.
 Sadece şu JSON'u döndür: {"value": string}
 "value": kurgusal bir polisiye hikâyede karakterin işlediği suçun kısa tanımı (max 8 kelime).
+İPUCU KURALI (en önemli kural): kullanıcı bir ipucu verdiyse suç MUTLAKA o konunun içinden olsun
+("satranç" → "satranç turnuvasında şike organize etmek", "uzay" → "uydu verilerini çalıp satmak",
+"aldatma" → "sevgilisinin telefonuna casus yazılım kurdurmak"). İpucunu aynen geri verme,
+parantezli ek yapma, ipucunu yok sayma.
 Gerçek kişileri/olayları kullanma; gerçek hayatta uygulanabilir teknik talimat verme, sadece olayı adlandır.
 Klişe olmasın, her seferinde farklı bir suç üret.`;
     const user = `${
@@ -83,18 +87,33 @@ Klişe olmasın, her seferinde farklı bir suç üret.`;
     }
 ${data.avoid.length ? `Şunları tekrar etme: ${data.avoid.join(" | ")}` : ""}`;
 
-    try {
-      const parsed = await askAi(system, user, 1.15);
-      const value = String(parsed.value ?? "")
-        .replace(/\s*\([^)]*\)/g, "")
-        .trim()
-        .slice(0, 90);
-      if (value) return { value, source: "ai" };
-      return { value: fallbackCrime(data.hint, data.avoid), source: "local" };
-    } catch {
-      return { value: fallbackCrime(data.hint, data.avoid), source: "local" };
+    const hintLow = (data.hint ?? "").trim().toLocaleLowerCase("tr");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const parsed = await askAi(
+          system,
+          attempt === 0
+            ? user
+            : `${user}
+UYARI: Önceki cevabın ipucuna uymadı. Bu kez "${data.hint}" konusunun içinden, farklı kelimelerle somut bir suç yaz.`,
+          attempt === 0 ? 1.15 : 1.3,
+          ["value"],
+        );
+        const value = String(parsed.value ?? "")
+          .replace(/\s*\([^)]*\)/g, "")
+          .replace(/^["'`]+|["'`]+$/g, "")
+          .trim()
+          .slice(0, 90);
+        const low = value.toLocaleLowerCase("tr");
+        if (value && low !== hintLow && !data.avoid.includes(value))
+          return { value, source: "ai" };
+      } catch (err) {
+        console.error("[suggestCrime]", err);
+      }
     }
+    return { value: fallbackCrime(data.hint, data.avoid), source: "local" };
   });
+
 
 export const interrogate = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => TurnInput.parse(input))
