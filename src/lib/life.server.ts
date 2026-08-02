@@ -24,14 +24,17 @@ export function aiConfigs(): AiConfig[] {
   }
   const lovable = process.env.LOVABLE_API_KEY;
   if (lovable) {
-    list.push({
-      key: lovable,
-      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-      model: process.env.LOVABLE_MODEL ?? "google/gemini-3.1-pro-preview",
-    });
+    // Önce zengin anlatım için güçlü model, o olmazsa hızlı model.
+    // Yerel şablonlara ancak ikisi de başarısız olursa düşülür.
+    const primary = process.env.LOVABLE_MODEL ?? "google/gemini-3.1-pro-preview";
+    for (const model of [primary, "google/gemini-3.6-flash", "google/gemini-2.5-flash"]) {
+      if (list.some((c) => c.model === model)) continue;
+      list.push({ key: lovable, url: "https://ai.gateway.lovable.dev/v1/chat/completions", model });
+    }
   }
   return list;
 }
+
 
 // Geriye dönük uyumluluk.
 export function aiConfig(): AiConfig {
