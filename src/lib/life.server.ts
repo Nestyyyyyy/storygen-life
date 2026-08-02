@@ -24,14 +24,17 @@ export function aiConfigs(): AiConfig[] {
   }
   const lovable = process.env.LOVABLE_API_KEY;
   if (lovable) {
-    list.push({
-      key: lovable,
-      url: "https://ai.gateway.lovable.dev/v1/chat/completions",
-      model: process.env.LOVABLE_MODEL ?? "google/gemini-3.1-pro-preview",
-    });
+    // Önce zengin anlatım için güçlü model, o olmazsa hızlı model.
+    // Yerel şablonlara ancak ikisi de başarısız olursa düşülür.
+    const primary = process.env.LOVABLE_MODEL ?? "google/gemini-3.1-pro-preview";
+    for (const model of [primary, "google/gemini-3.6-flash", "google/gemini-2.5-flash"]) {
+      if (list.some((c) => c.model === model)) continue;
+      list.push({ key: lovable, url: "https://ai.gateway.lovable.dev/v1/chat/completions", model });
+    }
   }
   return list;
 }
+
 
 // Geriye dönük uyumluluk.
 export function aiConfig(): AiConfig {
@@ -76,15 +79,34 @@ async function askOne(cfg: AiConfig, system: string, user: string, temperature: 
   if (!res.ok) throw new Error(`Yapay zekâ isteği başarısız (${res.status})`);
 
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-  const raw = json.choices?.[0]?.message?.content ?? "{}";
+  const raw = (json.choices?.[0]?.message?.content ?? "").trim();
+  const cleaned = raw
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/, "")
+    .trim();
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  const slice = start >= 0 && end > start ? cleaned.slice(start, end + 1) : cleaned;
+  let parsed: Record<string, unknown>;
   try {
-    return JSON.parse(raw.replace(/^```json\s*|```$/g, "")) as Record<string, unknown>;
+    parsed = JSON.parse(slice) as Record<string, unknown>;
   } catch {
-    return {} as Record<string, unknown>;
+    throw new Error("Yapay zekâ geçerli bir yanıt döndürmedi.");
   }
+  if (!parsed || typeof parsed !== "object" || !Object.keys(parsed).length)
+    throw new Error("Yapay zekâ boş yanıt döndürdü.");
+  return parsed;
 }
 
-export async function askAi(system: string, user: string, temperature = 1) {
+// Yapay zekâ HER ZAMAN önce denenir: tanımlı tüm sağlayıcı/model kombinasyonları
+// sırayla, her biri iki deneme hakkıyla çağrılır. Yerel şablonlar sadece
+// buradan hata fırlarsa devreye girer.
+export async function askAi(
+  system: string,
+  user: string,
+  temperature = 1,
+  requiredKeys: string[] = [],
+) {
   const cfgs = aiConfigs();
   if (!cfgs.length)
     throw new Error(
@@ -92,15 +114,26 @@ export async function askAi(system: string, user: string, temperature = 1) {
     );
   let lastErr: unknown;
   for (const cfg of cfgs) {
-    try {
-      return await askOne(cfg, system, user, temperature);
-    } catch (e) {
-      lastErr = e; // bu sağlayıcı olmadı; sıradakini dene
-      console.error(`[askAi] ${new URL(cfg.url).hostname} başarısız: ${e instanceof Error ? e.message : e}`);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const out = await askOne(cfg, system, user, temperature);
+        const missing = requiredKeys.filter((k) => {
+          const v = out[k];
+          return v === undefined || v === null || (typeof v === "string" && !v.trim());
+        });
+        if (missing.length) throw new Error(`Eksik alanlar: ${missing.join(", ")}`);
+        return out;
+      } catch (e) {
+        lastErr = e;
+        console.error(
+          `[askAi] ${cfg.model} deneme ${attempt + 1} başarısız: ${e instanceof Error ? e.message : e}`,
+        );
+      }
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error("Yapay zekâya ulaşılamadı.");
 }
+
 
 export const FIELD_TR: Record<string, string> = {
   occupation: "meslek",

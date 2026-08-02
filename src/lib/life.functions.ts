@@ -78,28 +78,53 @@ Sadece şu JSON'u döndür: {"value": string}
 - occupation: gerçek bir meslek/uğraş (max 4 kelime). Örn: "gece vardiyası hemşiresi".
 - personality: 3 sıfat, virgülle (max 5 kelime).
 - goal: tek cümlelik samimi bir hayat hedefi (max 9 kelime).
-Kullanıcı bir ipucu verdiyse ona MUTLAKA uy; ipucunu yok sayma.
-İpucu bir alan/konu ise (örn. "doktor", "kundak", "deniz") o alanın İÇİNDEN somut bir meslek üret:
-"doktor" → "acil servis doktoru", "kundak" → "kundakçı" veya "kasa hırsızı", "deniz" → "gemi makinisti".
-İpucunu olduğu gibi kopyalama; parantezli ekleme yapma ("doktor (ustası)" gibi cevaplar YASAK).
+İPUCU KURALI (en önemli kural): Kullanıcı bir ipucu verdiyse öneri MUTLAKA o konunun içinden gelmeli.
+İpucu bir alan/konu olabilir (örn. "doktor", "satranç", "uzay", "kundak", "deniz", "aldatma") —
+o dünyanın içinden somut bir şey üret: "doktor" → "acil servis doktoru", "satranç" → "satranç antrenörü",
+"uzay" → "uydu yörünge teknisyeni", "kundak" → "kundakçı", "deniz" → "gemi makinisti".
+İpucunu olduğu gibi kopyalamak, parantezli ek yapmak ("doktor (ustası)") veya ipucunu yok saymak YASAK.
+personality/goal alanlarında da ipucunun ruhu cümlenin içinde açıkça duyulsun.
 Klişe olmasın, her seferinde farklı ve yaratıcı bir şey üret.`;
-    const user = `İstenen alan: ${FIELD_TR[field]}.
+    const baseUser = `İstenen alan: ${FIELD_TR[field]}.
 Karakter bilgisi: yaş ${context?.age ?? "?"}, cinsiyet ${context?.gender ?? "?"}, meslek ${context?.occupation || "?"}, kişilik ${context?.personality || "?"}, hedef ${context?.goal || "?"}.
-${hint ? `Kullanıcının isteği (ZORUNLU uy): "${hint}". Öneri bu konunun içinden gerçek bir meslek/uğraş olmalı; ipucunu tekrar etme, parantez kullanma.` : "Serbest, sürpriz bir öneri üret."}
+${hint ? `Kullanıcının isteği (ZORUNLU uy): "${hint}". Öneri bu konunun İÇİNDEN olmalı; ipucunu tekrar etme, parantez kullanma.` : "Serbest, sürpriz bir öneri üret."}
 ${avoid.length ? `Şunları tekrar etme: ${avoid.join(" | ")}` : ""}`;
 
-    try {
-      const parsed = await askAi(system, user, 1.15);
-      const raw = String(parsed.value ?? "").trim();
-      // "doktor (ustası)" gibi parantezli ekleri temizle.
-      const value = raw.replace(/\s*\([^)]*\)/g, "").trim().slice(0, 80);
-      if (value) return { value, source: "ai" };
-      return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
-    } catch {
-      // Kredi/ağ sorununda uygulama çökmesin: yerel öneri döndür.
-      return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
+    const hintLow = (hint ?? "").trim().toLocaleLowerCase("tr");
+    const clean = (raw: string) =>
+      raw
+        .replace(/\s*\([^)]*\)/g, "")
+        .replace(/^["'`]+|["'`]+$/g, "")
+        .trim()
+        .slice(0, 80);
+    const badForHint = (v: string) => {
+      if (!hintLow) return false;
+      const low = v.toLocaleLowerCase("tr");
+      if (low === hintLow) return true; // ipucunu aynen geri verdi
+      if (field !== "occupation") return false;
+      // İpucu tek kelimeyse öneri o konuyla bağlantılı olmalı.
+      return hintLow.split(/\s+/).length === 1 && !low.includes(hintLow) && low.length < 4;
+    };
+
+    // Yapay zekâ önce denenir; iki tur boyunca ipucuna uymayan cevap reddedilir.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const strict =
+          attempt === 0
+            ? baseUser
+            : `${baseUser}
+UYARI: Önceki cevabın ipucuna uymadı ya da ipucunu aynen tekrarladı. Bu kez "${hint}" konusunun içinden, ipucundan FARKLI kelimelerle somut bir öneri yaz.`;
+        const parsed = await askAi(system, strict, attempt === 0 ? 1.15 : 1.3, ["value"]);
+        const value = clean(String(parsed.value ?? ""));
+        if (value && !badForHint(value) && !avoid.includes(value)) return { value, source: "ai" };
+      } catch (err) {
+        console.error("[suggestField]", err);
+      }
     }
+    // Yalnızca yapay zekâ gerçekten başarısız olduysa yerel havuz devreye girer.
+    return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
   });
+
 
 
 export const validateCharacter = createServerFn({ method: "POST" })
@@ -157,8 +182,11 @@ export const generateLifeEvent = createServerFn({ method: "POST" })
     const { character, stats, history, action, facts, mature } = data;
 
     const matureRule = mature
-      ? `YETİŞKİN MODU AÇIK (18+): Karakter yetişkin ve tüm sahneler yetişkin dünyasında geçer. Ağır yetişkin temalardan kaçınma: tutku ve cinsellik (ima ve atmosferle, kapı kapanır — organ/eylem tasviri YOK), aldatma, ayrılık, kıskançlık, alkol ve bağımlılık, kumar, borç ve tefeci, şiddet, suç, hastalık, ölüm ve yas, iş yerinde taciz, ahlaki açmazlar. Dil yetişkin ve sert olabilir; ara sıra ağır bir küfür geçebilir. Yine de: pornografik/grafik cinsel tasvir, reşit olmayanların cinselleştirilmesi, cinsel şiddetin yüceltilmesi ve nefret söylemi kesinlikle YASAK. Yetişkinlere özel bir olay çıktığında "title" başına "18+ " ekle.`
+      ? `YETİŞKİN MODU AÇIK (18+): Karakter yetişkin ve sahneler yetişkin dünyasında geçer. Temalar sertleşsin: tutku ve arzu, yasak/gizli ilişki, aldatma ve kıskançlık, ayrılık, borç ve tefeci baskısı, kumar, alkol ve bağımlılık, suç ve şiddetin gölgesi, hastalık, ölüm ve yas, ahlaki açmazlar. Dil yetişkin ve keskin olabilir; yerinde bir küfür geçebilir.
+CİNSELLİK TEKNİĞİ: "kapı kapanır" — gerilim, bakış, temas eşiği, koku, nefes, sonraki sabahın sessizliğiyle anlat; sahnenin devamını okurun hayaline bırak. Organ, eylem veya pornografik/grafik tasvir kesinlikle YASAK. Reşit olmayanların cinselleştirilmesi, cinsel şiddetin yüceltilmesi ve nefret söylemi de YASAK.
+Yetişkinlere özel bir olay çıktığında "title" başına "18+ " ekle.`
       : `YETİŞKİN MODU KAPALI: cinsellik, ağır şiddet, uyuşturucu ve küfürden uzak dur; temalar yumuşak kalsın.`;
+
 
 
     // --- Kader zarı: sonucu model değil, sunucu belirler ---
@@ -190,41 +218,49 @@ export const generateLifeEvent = createServerFn({ method: "POST" })
       : "KALICI GERÇEKLER: henüz yok.";
 
     const system = `Sen usta bir hayat simülasyonu anlatıcısısın: keskin gözlemci, ironik, bazen acımasız, bazen şefkatli bir romancı gibi yazarsın.
-TÜM metinleri doğal, akıcı, idiomatik TÜRKÇE yaz. İkinci tekil şahısla ("sen"); somut detaylar (isimler, mekânlar, saatler, replikler). Klişe yok. Max 85 kelime.
+TÜM metinleri doğal, akıcı, edebi ve idiomatik TÜRKÇE yaz. İkinci tekil şahısla ("sen"); somut detaylar (isimler, mekânlar, saatler, replikler, kokular, sesler). Klişe ve genel geçer laf yok.
+UZUNLUK ZORUNLU: "narrative" 3-4 tam cümle (60-110 kelime), "outcomeText" tam 2 cümle ve duygusal derinlikte. Seçenek etiketleri TAM CÜMLE olsun (5-12 kelime); tek kelimelik ya da "Devam et" gibi boş etiket YASAK.
 Karakterin cinsiyetine uygun hitap, ilişki ve toplumsal detaylar kur.
 SÜREKLİLİK ZORUNLU: Sana verilen "KALICI GERÇEKLER" listesindeki kişi, hayvan, mekân ve iş isimlerini ASLA değiştirme. Yeni bir isim uydurmadan önce listeyi kontrol et; aynı varlık için farklı isim kullanmak yasak. Yeni kalıcı bir isim/ilişki/mekân ortaya çıkarsa onu "facts" dizisine kısa bir cümleyle ekle (örn. "Köpeğinin adı Şila").
-ÇEŞİTLİLİK ZORUNLU: sadece iş/kariyer olmasın. Alanlar arasında dolaş, arka arkaya aynı alanı tekrarlama: aşk, ayrılık, arkadaşlık ve ihanet, aile, sağlık, para ve borç, taşınma, hobi ve sanat, inanç, komşuluk, evcil hayvan, tesadüf, kayıp ve yas, küçük gündelik anlar, seyahat, teknoloji, hukuki sürprizler.
+TEKRAR YASAK: Sana verilen "GEÇMİŞ SAHNELER" listesindeki başlıkları, olay kurgularını, seçenek cümlelerini ve sonuç cümlelerini bir daha kullanma; benzerini de yazma. Her tur farklı bir hayat alanına geç.
+ÇEŞİTLİLİK ZORUNLU: sadece iş/kariyer olmasın. Alanlar arasında dolaş: aşk, ayrılık, arkadaşlık ve ihanet, aile, sağlık, para ve borç, taşınma, hobi ve sanat, inanç, komşuluk, evcil hayvan, tesadüf, kayıp ve yas, küçük gündelik anlar, seyahat, teknoloji, hukuki sürprizler.
 HAYAT ADİL DEĞİL: hikâye sürekli yükselmesin. Sık sık geri tepme, pişmanlık, kayıp ve tökezleme olsun. "İyi seçim" bile bazen kötü sonuçlansın.
 Geçmiş seçimler birikmeli sonuç doğursun; eski kişiler geri dönsün.
 ${matureRule}
 Sadece şu JSON'u döndür:
 {"title":string,"narrative":string,"outcomeText":string,"kind":"choice"|"forced","choices":[{"label":string,"recommended":boolean}],"effects":{"happiness":number,"wealth":number,"career":number,"stress":number},"ageDelta":number,"facts":string[]}
 "facts": SADECE bu sahnede ilk kez ortaya çıkan kalıcı bilgiler (isimler, ilişkiler, mekânlar). Yoksa boş dizi.
-"outcomeText": az önceki seçimin sonucunu anlatan TEK cümle (ilk olayda boş string).
-"narrative": sonuçtan SONRA gelen yeni sahne.
-Seçenek etiketleri kısa ve eyleme dönük (max 9 kelime), biri riskli / biri güvenli / biri beklenmedik; tam olarak biri recommended=true (ama "önerilen" garanti değildir).
+"outcomeText": az önceki seçimin sonucunu anlatan 2 cümle (ilk olayda boş string).
+"narrative": sonuçtan SONRA gelen yeni sahne, 3-4 cümle.
+Seçenekler tam cümle, eyleme dönük ve birbirinden gerçekten farklı olsun: biri riskli / biri güvenli / biri beklenmedik; tam olarak biri recommended=true (ama "önerilen" garanti değildir).
 "effects" AZ ÖNCEKİ seçimin DELTA'larıdır (-25..25); ilk olayda hepsi 0. Küçük olaylarda -5..5.
 ageDelta: ilk olayda 0; sonra ÇOĞUNLUKLA 0, gerekiyorsa 1, çok nadiren 2.`;
+
 
     const who = `${character.age} yaşında ${character.gender} ${character.occupation}, kişilik: ${character.personality}, nihai hedef: ${character.goal}`;
 
     const seed = openingSeed();
 
+    const usedTitles = Array.from(new Set(history.map((h) => h.event).filter(Boolean))).slice(-24);
+    const usedChoices = Array.from(new Set(history.map((h) => h.choice).filter(Boolean))).slice(-24);
+
     const userMsg = action
       ? `Karakter: ${who}.
 ${factLine}
 Güncel durum: ${JSON.stringify(stats)}.
-Hayat geçmişi (eskiden yeniye): ${history
+GEÇMİŞ SAHNELER (başlık + seçim + sonuç; eskiden yeniye): ${history
           .slice(-24)
           .map(
             (h, i) =>
-              `${i + 1}) ${h.event}${h.detail ? ` — ${h.detail.slice(0, 160)}` : ""} -> ${h.choice}`,
+              `${i + 1}) "${h.event}" | seçim: ${h.choice}${h.detail ? ` | sonuç: ${h.detail.slice(0, 200)}` : ""}`,
           )
-          .join(" | ")}
+          .join(" || ")}
+BİR DAHA KULLANILMAYACAK BAŞLIKLAR: ${usedTitles.join(" | ") || "yok"}
+BİR DAHA KULLANILMAYACAK SEÇENEK CÜMLELERİ: ${usedChoices.join(" | ") || "yok"}
 Az önce şunu seçti: "${action}".
 ${outcomeRule}
 ${shapeRule}
-Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
+Daha önce geçenleri tekrarlama: yeni başlık, yeni kurgu, yeni seçenek cümleleri yaz ve farklı bir hayat alanına geç. Çeşitlilik anahtarı: ${seed.nonce}`
       : `Şu karakter için açılış olayını yaz: ${who}.
 Bu açılış ŞU tohuma göre kurulsun (birebir kopyalama, ilham al):
 - hayat alanı: ${seed.domain}
@@ -236,8 +272,9 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
     let parsed: Record<string, unknown>;
     try {
-      parsed = await askAi(system, userMsg, action ? 1 : 1.2);
+      parsed = await askAi(system, userMsg, action ? 1.05 : 1.2, ["title", "narrative", "choices"]);
     } catch {
+
       // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel hikâye motoru devralır.
       parsed = localLifeEvent({
         occupation: character.occupation,
