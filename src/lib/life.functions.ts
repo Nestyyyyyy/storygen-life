@@ -78,28 +78,53 @@ Sadece şu JSON'u döndür: {"value": string}
 - occupation: gerçek bir meslek/uğraş (max 4 kelime). Örn: "gece vardiyası hemşiresi".
 - personality: 3 sıfat, virgülle (max 5 kelime).
 - goal: tek cümlelik samimi bir hayat hedefi (max 9 kelime).
-Kullanıcı bir ipucu verdiyse ona MUTLAKA uy; ipucunu yok sayma.
-İpucu bir alan/konu ise (örn. "doktor", "kundak", "deniz") o alanın İÇİNDEN somut bir meslek üret:
-"doktor" → "acil servis doktoru", "kundak" → "kundakçı" veya "kasa hırsızı", "deniz" → "gemi makinisti".
-İpucunu olduğu gibi kopyalama; parantezli ekleme yapma ("doktor (ustası)" gibi cevaplar YASAK).
+İPUCU KURALI (en önemli kural): Kullanıcı bir ipucu verdiyse öneri MUTLAKA o konunun içinden gelmeli.
+İpucu bir alan/konu olabilir (örn. "doktor", "satranç", "uzay", "kundak", "deniz", "aldatma") —
+o dünyanın içinden somut bir şey üret: "doktor" → "acil servis doktoru", "satranç" → "satranç antrenörü",
+"uzay" → "uydu yörünge teknisyeni", "kundak" → "kundakçı", "deniz" → "gemi makinisti".
+İpucunu olduğu gibi kopyalamak, parantezli ek yapmak ("doktor (ustası)") veya ipucunu yok saymak YASAK.
+personality/goal alanlarında da ipucunun ruhu cümlenin içinde açıkça duyulsun.
 Klişe olmasın, her seferinde farklı ve yaratıcı bir şey üret.`;
-    const user = `İstenen alan: ${FIELD_TR[field]}.
+    const baseUser = `İstenen alan: ${FIELD_TR[field]}.
 Karakter bilgisi: yaş ${context?.age ?? "?"}, cinsiyet ${context?.gender ?? "?"}, meslek ${context?.occupation || "?"}, kişilik ${context?.personality || "?"}, hedef ${context?.goal || "?"}.
-${hint ? `Kullanıcının isteği (ZORUNLU uy): "${hint}". Öneri bu konunun içinden gerçek bir meslek/uğraş olmalı; ipucunu tekrar etme, parantez kullanma.` : "Serbest, sürpriz bir öneri üret."}
+${hint ? `Kullanıcının isteği (ZORUNLU uy): "${hint}". Öneri bu konunun İÇİNDEN olmalı; ipucunu tekrar etme, parantez kullanma.` : "Serbest, sürpriz bir öneri üret."}
 ${avoid.length ? `Şunları tekrar etme: ${avoid.join(" | ")}` : ""}`;
 
-    try {
-      const parsed = await askAi(system, user, 1.15);
-      const raw = String(parsed.value ?? "").trim();
-      // "doktor (ustası)" gibi parantezli ekleri temizle.
-      const value = raw.replace(/\s*\([^)]*\)/g, "").trim().slice(0, 80);
-      if (value) return { value, source: "ai" };
-      return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
-    } catch {
-      // Kredi/ağ sorununda uygulama çökmesin: yerel öneri döndür.
-      return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
+    const hintLow = (hint ?? "").trim().toLocaleLowerCase("tr");
+    const clean = (raw: string) =>
+      raw
+        .replace(/\s*\([^)]*\)/g, "")
+        .replace(/^["'`]+|["'`]+$/g, "")
+        .trim()
+        .slice(0, 80);
+    const badForHint = (v: string) => {
+      if (!hintLow) return false;
+      const low = v.toLocaleLowerCase("tr");
+      if (low === hintLow) return true; // ipucunu aynen geri verdi
+      if (field !== "occupation") return false;
+      // İpucu tek kelimeyse öneri o konuyla bağlantılı olmalı.
+      return hintLow.split(/\s+/).length === 1 && !low.includes(hintLow) && low.length < 4;
+    };
+
+    // Yapay zekâ önce denenir; iki tur boyunca ipucuna uymayan cevap reddedilir.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const strict =
+          attempt === 0
+            ? baseUser
+            : `${baseUser}
+UYARI: Önceki cevabın ipucuna uymadı ya da ipucunu aynen tekrarladı. Bu kez "${hint}" konusunun içinden, ipucundan FARKLI kelimelerle somut bir öneri yaz.`;
+        const parsed = await askAi(system, strict, attempt === 0 ? 1.15 : 1.3, ["value"]);
+        const value = clean(String(parsed.value ?? ""));
+        if (value && !badForHint(value) && !avoid.includes(value)) return { value, source: "ai" };
+      } catch (err) {
+        console.error("[suggestField]", err);
+      }
     }
+    // Yalnızca yapay zekâ gerçekten başarısız olduysa yerel havuz devreye girer.
+    return { value: fallbackSuggestion(field, hint, avoid), source: "local" };
   });
+
 
 
 export const validateCharacter = createServerFn({ method: "POST" })
