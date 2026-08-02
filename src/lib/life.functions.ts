@@ -241,21 +241,26 @@ ageDelta: ilk olayda 0; sonra ÇOĞUNLUKLA 0, gerekiyorsa 1, çok nadiren 2.`;
 
     const seed = openingSeed();
 
+    const usedTitles = Array.from(new Set(history.map((h) => h.event).filter(Boolean))).slice(-24);
+    const usedChoices = Array.from(new Set(history.map((h) => h.choice).filter(Boolean))).slice(-24);
+
     const userMsg = action
       ? `Karakter: ${who}.
 ${factLine}
 Güncel durum: ${JSON.stringify(stats)}.
-Hayat geçmişi (eskiden yeniye): ${history
+GEÇMİŞ SAHNELER (başlık + seçim + sonuç; eskiden yeniye): ${history
           .slice(-24)
           .map(
             (h, i) =>
-              `${i + 1}) ${h.event}${h.detail ? ` — ${h.detail.slice(0, 160)}` : ""} -> ${h.choice}`,
+              `${i + 1}) "${h.event}" | seçim: ${h.choice}${h.detail ? ` | sonuç: ${h.detail.slice(0, 200)}` : ""}`,
           )
-          .join(" | ")}
+          .join(" || ")}
+BİR DAHA KULLANILMAYACAK BAŞLIKLAR: ${usedTitles.join(" | ") || "yok"}
+BİR DAHA KULLANILMAYACAK SEÇENEK CÜMLELERİ: ${usedChoices.join(" | ") || "yok"}
 Az önce şunu seçti: "${action}".
 ${outcomeRule}
 ${shapeRule}
-Son olayların alanını tekrarlama; farklı bir hayat alanına geç.`
+Daha önce geçenleri tekrarlama: yeni başlık, yeni kurgu, yeni seçenek cümleleri yaz ve farklı bir hayat alanına geç. Çeşitlilik anahtarı: ${seed.nonce}`
       : `Şu karakter için açılış olayını yaz: ${who}.
 Bu açılış ŞU tohuma göre kurulsun (birebir kopyalama, ilham al):
 - hayat alanı: ${seed.domain}
@@ -267,8 +272,9 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
     let parsed: Record<string, unknown>;
     try {
-      parsed = await askAi(system, userMsg, action ? 1 : 1.2);
+      parsed = await askAi(system, userMsg, action ? 1.05 : 1.2, ["title", "narrative", "choices"]);
     } catch {
+
       // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel hikâye motoru devralır.
       parsed = localLifeEvent({
         occupation: character.occupation,
