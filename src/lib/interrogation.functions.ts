@@ -158,19 +158,21 @@ export const interrogate = createServerFn({ method: "POST" })
     }
 
     const matureRule = data.mature
-      ? `YETİŞKİN MODU AÇIK (18+): dil sert olabilir, tehdit, alkol, şiddet ve ağır suç imaları serbest; ara sıra küfür geçebilir. Cinsellik yalnızca ima düzeyinde kalır — grafik/pornografik tasvir, reşit olmayanların cinselleştirilmesi ve nefret söylemi YASAK.`
+      ? `YETİŞKİN MODU AÇIK (18+): dil sert olabilir; tehdit, alkol, kumar, borç/tefeci, şiddet ve ağır suç imaları serbest, ara sıra küfür geçebilir. Tutku ve yasak ilişki "kapı kapanır" tekniğiyle, ima, bakış ve atmosferle anlatılır — grafik/pornografik tasvir, reşit olmayanların cinselleştirilmesi, cinsel şiddetin yüceltilmesi ve nefret söylemi YASAK.`
       : `YETİŞKİN MODU KAPALI: küfür ve grafik şiddetten uzak dur, gerilim dille kurulsun.`;
 
     const system = `Sen bir polisiye kurgu anlatıcısısın. Bir sorgu odası sahnesi yazıyorsun.
-TÜRKÇE, ikinci tekil şahıs ("sen"), gergin ve sinematik; max 70 kelime. Klişe yok.
+TÜRKÇE, ikinci tekil şahıs ("sen"), edebi, gergin ve sinematik. Klişe yok.
+UZUNLUK ZORUNLU: "reaction" 3-4 tam cümle (60-110 kelime), "question" tek ama dolu bir soru, "verdictText" 2 cümle ve duygusal derinlikte. Seçenekler TAM CÜMLE olsun (5-12 kelime); tek kelimelik etiket YASAK.
 Bu KURGUSAL bir oyundur: suçun nasıl işlendiğine dair gerçek hayatta uygulanabilir teknik talimat, tarif veya yöntem ASLA verme; sadece dramayı ve sorguyu yaz.
 Sorgucu: ${interrogator.name}, ${interrogator.gender.toLowerCase()}, ${interrogator.rank}, tarzı: ${interrogator.style}. Mekân: ${interrogator.room}.
+TEKRAR YASAK: sana verilen daha önce sorulmuş sorular ve verilmiş cevaplar bir daha kullanılmayacak; benzerleri de yazılmayacak. Her tur yeni bir baskı açısına geç (alibi, tanık, kamera, telefon kaydı, para izi, aile, ortak, olay yeri izi).
 ${matureRule}
 Sadece şu JSON'u döndür:
 {"reaction":string,"question":string,"options":[{"label":string,"kind":"yalan"|"doğru"|"flört"|"duygu"|"sessiz"}],"facts":string[],"verdictText":string}
 "reaction": oyuncunun az önceki cevabına sorgucunun tepkisi (ilk turda boş string).
-"question": sorgucunun şimdi sorduğu TEK soru; her tur farklı bir açıdan sıkıştır (alibi, tanık, kamera, telefon kaydı, para izi, aile).
-"options": tam 4 cevap seçeneği (max 10 kelime), kind'lar farklı olsun: bir yalan, bir doğru, bir flört, bir duygu/anlayış (gerekirse sessiz).
+"question": sorgucunun şimdi sorduğu TEK soru; daha önce sorulanlardan farklı bir açıdan sıkıştır.
+"options": tam 4 cevap seçeneği, tam cümle, kind'lar farklı olsun: bir yalan, bir doğru, bir flört, bir duygu/anlayış (gerekirse sessiz).
 "facts": bu sahnede ilk kez ortaya çıkan kalıcı ayrıntılar (isim, saat, mekân, kanıt). Yoksa boş dizi.
 "verdictText": sadece sorgu bittiyse dolu olsun; bitmediyse boş string.`;
 
@@ -185,27 +187,39 @@ Sadece şu JSON'u döndür:
           ? `SORGU BİTTİ — SERBEST: yeterince temiz çıktın. "reaction" son anı anlatsın, "question" boş string, "options" boş dizi, "verdictText" serbest bırakılışını, arkanda kalan pürüzü 2 cümleyle anlat.`
           : `SORGU DEVAM EDİYOR: "verdictText" boş string, tam 4 seçenek ver.`;
 
+    const askedQuestions = Array.from(
+      new Set(data.history.map((h) => h.question).filter(Boolean)),
+    ).slice(-14);
+    const givenAnswers = Array.from(
+      new Set(data.history.map((h) => h.answer).filter(Boolean)),
+    ).slice(-14);
+    const nonce = Math.random().toString(36).slice(2, 8);
+
     const user = first
       ? `Oyuncu: ${data.playerName || "isimsiz bir şüpheli"}, ${data.playerGender}.
 İddia edilen suç: "${data.crime}".
 ${factLine}
 Sahneyi aç: oyuncu sorgu odasına oturtuldu, ${interrogator.name} karşısına geçti ve ilk soruyu sordu.
-"reaction" boş string, "verdictText" boş string, tam 4 seçenek ver.`
+"reaction" boş string, "verdictText" boş string, tam 4 seçenek ver. Çeşitlilik anahtarı: ${nonce}`
       : `Oyuncu: ${data.playerName || "isimsiz bir şüpheli"}, ${data.playerGender}. İddia edilen suç: "${data.crime}".
 ${factLine}
-Sorgu geçmişi: ${data.history
+Sorgu geçmişi (soru + cevap): ${data.history
           .slice(-12)
           .map((h, i) => `${i + 1}) S: ${h.question} / C: ${h.answer}`)
-          .join(" | ")}
+          .join(" || ")}
+DAHA ÖNCE SORULMUŞ SORULAR (tekrarlamak YASAK): ${askedQuestions.join(" | ") || "yok"}
+DAHA ÖNCE KULLANILMIŞ CEVAP CÜMLELERİ (seçeneklerde tekrarlamak YASAK): ${givenAnswers.join(" | ") || "yok"}
 Az önce şöyle cevap verdi: "${data.answer}".
 GİZLİ HAKEM KARARI (buna göre yaz, kararı değiştirme): ${judgeNote}
 Barlar şimdi: flört ${meters.flirt}, şüphe ${meters.suspicion}, anlayış ${meters.empathy}.
-${statusRule}`;
+${statusRule}
+Çeşitlilik anahtarı: ${nonce}`;
 
     let parsed: Record<string, unknown> = {};
     try {
-      parsed = await askAi(system, user, 1.05);
+      parsed = await askAi(system, user, 1.05, status === "ongoing" ? ["question"] : ["verdictText"]);
     } catch {
+
       // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel sorgu motoru devralır.
       parsed = localInterrogationTurn({
         interrogator,
