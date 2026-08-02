@@ -220,6 +220,26 @@ const HINT_TOPICS: { keys: string[]; jobs: string[] }[] = [
   { keys: ["toprak", "çiftlik", "tarım", "bağ", "arı", "orman"], jobs: ["arı yetiştiricisi", "bağ işletmecisi", "orman muhafaza memuru", "seracı"] },
   { keys: ["para", "banka", "borsa", "ticaret", "patron", "şirket"], jobs: ["borsa aracısı", "banka kredi uzmanı", "küçük esnaf", "icra takip memuru"] },
   { keys: ["yol", "şoför", "kamyon", "taksi", "kurye"], jobs: ["uzun yol kamyoncusu", "gece taksicisi", "motokurye", "yolcu otobüsü şoförü"] },
+  { keys: ["insan", "psikolog", "sosyal", "toplum", "yardım"], jobs: ["insan kaynakları uzmanı", "sosyal hizmet görevlisi", "psikolojik danışman", "mahalle muhtarı", "afet gönüllüsü koordinatörü", "yaşlı bakım evi sorumlusu"] },
+  { keys: ["çocuk", "bebek", "anaokul"], jobs: ["anaokulu öğretmeni", "çocuk gelişim uzmanı", "oyuncak tamircisi", "çocuk kitabı çizeri"] },
+  { keys: ["gez", "seyahat", "tur", "otel", "dünya"], jobs: ["tur rehberi", "seyahat yazarı", "butik otel işletmecisi", "gezici belgeselci"] },
+  { keys: ["çiçek", "bahçe", "bitki", "doğa"], jobs: ["peyzaj bahçıvanı", "çiçekçi dükkânı sahibi", "botanik bahçesi bakıcısı", "doğa koruma görevlisi"] },
+  { keys: ["ölüm", "cenaze", "mezar"], jobs: ["cenaze levazımatçısı", "mezarlık bekçisi", "adli tıp fotoğrafçısı"] },
+  { keys: ["din", "cami", "kilise", "inanç"], jobs: ["köy imamı", "ilahiyat öğretmeni", "vakıf gönüllüsü"] },
+  { keys: ["ev", "temizlik", "tamir", "usta"], jobs: ["ev tadilat ustası", "kombi servisçisi", "çilingir", "ikinci el eşya dükkâncısı"] },
+];
+
+// Hiçbir konuya eşleşmeyen ipuçlarını yine de anlamlı bir öneriye çeviren kalıplar.
+const OCC_WEAVE = [
+  "{h} üzerine çalışan serbest araştırmacı",
+  "{h} konusunu yazan taşra gazetecisi",
+  "{h} temalı bir dükkânın sahibi",
+  "{h} işleriyle uğraşan küçük esnaf",
+];
+const GOAL_WEAVE = [
+  "{h} ile ilgili büyük bir hayali gerçekleştirmek",
+  "Hayatını {h} etrafında yeniden kurmak",
+  "{h} konusunda ardında bir iz bırakmak",
 ];
 
 function withHint(field: string, hint: string) {
@@ -244,15 +264,15 @@ function withHint(field: string, hint: string) {
     const pool = FALLBACK_SUGGESTIONS.occupation ?? [];
     const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
     if (match) return match;
-    // Son çare: ipucunu meslek gibi yaz, "(ustası)" gibi parantez ekleme.
-    return h.toLocaleLowerCase("tr").slice(0, 80);
+    // Son çare: ipucunu bir kalıba dokuyup gerçek bir meslek gibi sun.
+    return pick(OCC_WEAVE).replace("{h}", low).slice(0, 80);
   }
 
   const pool = FALLBACK_SUGGESTIONS[field] ?? [];
   const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
   if (match) return match;
   if (field === "personality") return `${h}, ${pick(["inatçı", "meraklı", "kırılgan", "esprili"])}`.slice(0, 80);
-  return `${h.charAt(0).toLocaleUpperCase("tr")}${h.slice(1)}`.slice(0, 80);
+  return pick(GOAL_WEAVE).replace("{h}", low).slice(0, 80);
 }
 
 

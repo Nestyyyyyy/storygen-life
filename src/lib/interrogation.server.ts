@@ -32,14 +32,31 @@ const CRIME_TOPICS: { keys: string[]; crimes: string[] }[] = [
   { keys: ["araba", "araç", "yol", "kaza"], crimes: ["lüks araba çalıp parçalamak", "kaçarken bir kazaya sebep olup olay yerinden ayrılmak"] },
   { keys: ["kaçak", "sınır", "mal", "tekne"], crimes: ["kaçak sigara ve alkol nakli", "sınırdan kaçak mal geçirmek"] },
   { keys: ["kumar", "bahis"], crimes: ["gizli bir kumar salonu işletmek", "şike bahsi organize etmek"] },
+  { keys: ["insan", "kaçır", "rehin", "adam", "kişi"], crimes: ["bir iş insanını fidye için alıkoymak", "sahte iş vaadiyle insanları dolandıran şebekeye karışmak", "kayıp bir kişinin son görüldüğü yerde bulunmak", "bir tanığı susturmak için tehdit etmek"] },
+  { keys: ["uyuşturucu", "hap", "madde", "torbacı"], crimes: ["şehirler arası uyuşturucu nakli yapmak", "gece kulübünde el altından satış yapmak"] },
+  { keys: ["silah", "bıçak", "kurşun"], crimes: ["ruhsatsız silah ticaretine aracılık etmek", "bir kavgada silah çekmek"] },
+  { keys: ["miras", "vasiyet", "tapu"], crimes: ["miras için sahte vasiyet düzenlemek", "yaşlı bir akrabanın tapusunu üzerine geçirmek"] },
+  { keys: ["aşk", "sevgili", "kıskanç", "eş", "aldatma"], crimes: ["eski sevgilinin evine gizlice girmek", "kıskançlık kavgasında birini yaralamak", "sevgilisinin patronunun arabasını çizip lastiklerini kesmek"] },
+  { keys: ["internet", "telefon", "sosyal", "hesap"], crimes: ["sahte hesaplarla insanları dolandırmak", "birinin telefonuna casus yazılım kurdurmak", "şantaj için özel fotoğraf ele geçirmek"] },
+  { keys: ["hayvan", "kedi", "köpek", "at"], crimes: ["yarış atına doping verip yarış sonucunu değiştirmek", "değerli bir cins köpeği sahibinden kaçırmak"] },
+];
+
+// Hiçbir konuya eşleşmeyen ipuçlarını suça dokuyan kalıplar.
+const CRIME_WEAVE = [
+  "{h} yüzünden çıkan kavgada birini yaralamak",
+  "{h} üzerinden yürüyen bir dolandırıcılık ağına karışmak",
+  "{h} ile ilgili sahte belge düzenlemek",
+  "{h} meselesi yüzünden bir eve gizlice girmek",
+  "{h} işine bulaşıp yakayı ele vermek",
 ];
 
 export function fallbackCrime(hint?: string) {
   if (hint && hint.trim().length > 1) {
-    const low = hint.toLocaleLowerCase("tr");
+    const low = hint.trim().toLocaleLowerCase("tr").replace(/\s+/g, " ").slice(0, 40);
     const topic = CRIME_TOPICS.find((t) => t.keys.some((k) => low.includes(k)));
     if (topic) return pick(topic.crimes);
-    return hint.trim().toLocaleLowerCase("tr").slice(0, 80);
+    // Eşleşme yoksa ipucunu olduğu gibi geri verme; bir suç kalıbına doku.
+    return pick(CRIME_WEAVE).replace("{h}", low).slice(0, 90);
   }
   return pick(CRIME_POOL);
 }
