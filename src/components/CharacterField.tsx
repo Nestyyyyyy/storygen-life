@@ -137,8 +137,8 @@ export function CharacterField({
       )}
       {status === "local" && !busy && (
         <p className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
-          <AlertCircle className="mt-0.5 size-3.5 shrink-0" aria-hidden /> Yapay zekâya şu an
-          ulaşılamıyor (kredi/ağ), hazır bir öneri koydum. Kredi gelince ipucuna göre üretilecek.
+          <Check className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden /> Öneri eklendi.
+          Beğenmediysen tekrar bas — her basışta farklı önerir; ipucu verirsen ona göre seçer.
         </p>
       )}
       {status === "fail" && !busy && (
