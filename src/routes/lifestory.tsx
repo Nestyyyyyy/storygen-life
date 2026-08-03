@@ -70,6 +70,16 @@ const GENDERS = ["Kadın", "Erkek", "Belirtmek istemiyorum"];
 
 type Entry = { turn: LifeTurn; chosen?: string };
 
+type LifeSave = {
+  character: Character;
+  stats: LifeStats;
+  deltas: Partial<LifeStats>;
+  entries: Entry[];
+  facts: string[];
+  age: number;
+  mature: boolean;
+};
+
 const OUTCOME: Record<
   LifeTurn["outcome"],
   { label: string; color: string; Icon: typeof TrendingUp }
