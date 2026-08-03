@@ -169,6 +169,43 @@ function Detective() {
     setError(null);
   }
 
+  function snapshot(): { name: string; summary: string; data: DetectiveSave } {
+    return {
+      name: crime.trim().slice(0, 40) || "Dosya",
+      summary: `${lines.length}. tur · Şüphe ${meters.suspicion} · Flört ${meters.flirt}`,
+      data: { crime, name, gender, mature, lines, meters, delta, facts },
+    };
+  }
+
+  function applySave(data: DetectiveSave) {
+    setCrime(data.crime ?? "");
+    setName(data.name ?? "");
+    setGender(data.gender ?? GENDERS[0]);
+    setMature(Boolean(data.mature));
+    setLines(data.lines ?? []);
+    setMeters(data.meters ?? START_METERS);
+    setDelta(data.delta ?? {});
+    setFacts(data.facts ?? []);
+    setError(null);
+    setStarted(true);
+  }
+
+  // Her tur otomatik kayıt
+  useEffect(() => {
+    if (!started || lines.length === 0 || loading) return;
+    const snap = snapshot();
+    writeSave<DetectiveSave>({
+      id: autoSaveId("detective"),
+      mode: "detective",
+      name: `Otomatik kayıt · ${snap.name}`,
+      summary: snap.summary,
+      data: snap.data,
+      auto: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, loading, started]);
+
+
   const metersCard = (
     <section
       aria-labelledby="meters-heading"
