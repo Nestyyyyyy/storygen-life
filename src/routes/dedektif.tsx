@@ -66,6 +66,17 @@ const START_METERS = { flirt: 10, suspicion: 45, empathy: 15 };
 
 type Line = { turn: InterrogationTurn; answer?: string };
 
+type DetectiveSave = {
+  crime: string;
+  name: string;
+  gender: string;
+  mature: boolean;
+  lines: Line[];
+  meters: typeof START_METERS;
+  delta: Partial<typeof START_METERS>;
+  facts: string[];
+};
+
 function Detective() {
   const ask = useServerFn(interrogate);
   const suggest = useServerFn(suggestCrime);
