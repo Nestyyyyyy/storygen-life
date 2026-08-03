@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -27,6 +27,8 @@ import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
 import { DeltaChips } from "@/components/DeltaChips";
 import { MatureToggle } from "@/components/MatureToggle";
+import { SaveMenu } from "@/components/SaveMenu";
+import { autoSaveId, writeSave } from "@/lib/saves";
 import {
   generateLifeEvent,
   suggestField,
@@ -67,6 +69,16 @@ const START_STATS: LifeStats = { happiness: 60, wealth: 40, career: 45, stress: 
 const GENDERS = ["Kadın", "Erkek", "Belirtmek istemiyorum"];
 
 type Entry = { turn: LifeTurn; chosen?: string };
+
+type LifeSave = {
+  character: Character;
+  stats: LifeStats;
+  deltas: Partial<LifeStats>;
+  entries: Entry[];
+  facts: string[];
+  age: number;
+  mature: boolean;
+};
 
 const OUTCOME: Record<
   LifeTurn["outcome"],
@@ -225,6 +237,42 @@ function LifeStory() {
     setIssues({});
   }
 
+  function snapshot(): { name: string; summary: string; data: LifeSave } {
+    return {
+      name: character ? `${character.occupation} · ${age} yaş` : "Hayat",
+      summary: `${entries.length} bölüm · Mutluluk ${stats.happiness} · Servet ${stats.wealth}`,
+      data: { character: character!, stats, deltas, entries, facts, age, mature },
+    };
+  }
+
+  function applySave(data: LifeSave) {
+    setCharacter(data.character);
+    setStats(data.stats);
+    setDeltas(data.deltas ?? {});
+    setEntries(data.entries ?? []);
+    setFacts(data.facts ?? []);
+    setAge(data.age ?? data.character.age);
+    setMature(Boolean(data.mature));
+    setError(null);
+    setIssues({});
+  }
+
+  // Her tur otomatik kayıt
+  useEffect(() => {
+    if (!character || entries.length === 0 || loading) return;
+    const snap = snapshot();
+    writeSave<LifeSave>({
+      id: autoSaveId("life"),
+      mode: "life",
+      name: `Otomatik kayıt · ${snap.name}`,
+      summary: snap.summary,
+      data: snap.data,
+      auto: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, loading]);
+
+
   const statsCard = (
     <section
       aria-labelledby="stats-heading"
@@ -290,6 +338,7 @@ function LifeStory() {
           <aside className="panel h-fit w-full shrink-0 p-5 lg:w-80">
             {sidebarHeader}
             {statsCard}
+            <SaveMenu<LifeSave> className="mt-5" mode="life" onLoad={applySave} />
             <Link
               to="/"
               className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm text-foreground transition-colors hover:bg-secondary"
@@ -453,9 +502,34 @@ function LifeStory() {
   }
 
   // ---------- Game ----------
+  const hudItems: { label: string; value: number; color: string }[] = [
+    { label: "Mutluluk", value: stats.happiness, color: "var(--happiness)" },
+    { label: "Servet", value: stats.wealth, color: "var(--wealth)" },
+    { label: "Kariyer", value: stats.career, color: "var(--career)" },
+    { label: "Stres", value: stats.stress, color: "var(--stress)" },
+  ];
+
   return (
     <div className="min-h-dvh">
+      <div className="hud lg:hidden">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto">
+          <span className="chip shrink-0 bg-primary/15 text-primary">{age} yaş</span>
+          {hudItems.map((h) => (
+            <span
+              key={h.label}
+              className="chip shrink-0"
+              style={{
+                color: h.color,
+                background: `color-mix(in oklab, ${h.color} 16%, transparent)`,
+              }}
+            >
+              {h.label} {h.value}
+            </span>
+          ))}
+        </div>
+      </div>
       <div className="mx-auto flex max-w-7xl flex-col gap-5 p-4 md:p-8 lg:flex-row">
+
         <aside className="panel h-fit w-full shrink-0 p-5 lg:sticky lg:top-8 lg:w-80">
           {sidebarHeader}
 
@@ -498,6 +572,14 @@ function LifeStory() {
               </ul>
             </section>
           )}
+
+          <SaveMenu<LifeSave>
+            className="mt-5"
+            mode="life"
+            canSave={entries.length > 0}
+            snapshot={snapshot}
+            onLoad={applySave}
+          />
 
           <button
             onClick={reset}

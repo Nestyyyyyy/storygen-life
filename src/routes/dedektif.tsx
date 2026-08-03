@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -21,6 +21,8 @@ import {
 import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
 import { MatureToggle } from "@/components/MatureToggle";
+import { SaveMenu } from "@/components/SaveMenu";
+import { autoSaveId, writeSave } from "@/lib/saves";
 import {
   interrogate,
   suggestCrime,
@@ -63,6 +65,17 @@ const KIND_STYLE: Record<string, { label: string; color: string }> = {
 const START_METERS = { flirt: 10, suspicion: 45, empathy: 15 };
 
 type Line = { turn: InterrogationTurn; answer?: string };
+
+type DetectiveSave = {
+  crime: string;
+  name: string;
+  gender: string;
+  mature: boolean;
+  lines: Line[];
+  meters: typeof START_METERS;
+  delta: Partial<typeof START_METERS>;
+  facts: string[];
+};
 
 function Detective() {
   const ask = useServerFn(interrogate);
@@ -156,6 +169,43 @@ function Detective() {
     setError(null);
   }
 
+  function snapshot(): { name: string; summary: string; data: DetectiveSave } {
+    return {
+      name: crime.trim().slice(0, 40) || "Dosya",
+      summary: `${lines.length}. tur · Şüphe ${meters.suspicion} · Flört ${meters.flirt}`,
+      data: { crime, name, gender, mature, lines, meters, delta, facts },
+    };
+  }
+
+  function applySave(data: DetectiveSave) {
+    setCrime(data.crime ?? "");
+    setName(data.name ?? "");
+    setGender(data.gender ?? GENDERS[0]);
+    setMature(Boolean(data.mature));
+    setLines(data.lines ?? []);
+    setMeters(data.meters ?? START_METERS);
+    setDelta(data.delta ?? {});
+    setFacts(data.facts ?? []);
+    setError(null);
+    setStarted(true);
+  }
+
+  // Her tur otomatik kayıt
+  useEffect(() => {
+    if (!started || lines.length === 0 || loading) return;
+    const snap = snapshot();
+    writeSave<DetectiveSave>({
+      id: autoSaveId("detective"),
+      mode: "detective",
+      name: `Otomatik kayıt · ${snap.name}`,
+      summary: snap.summary,
+      data: snap.data,
+      auto: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lines, loading, started]);
+
+
   const metersCard = (
     <section
       aria-labelledby="meters-heading"
@@ -215,6 +265,7 @@ function Detective() {
           <aside className="panel h-fit w-full shrink-0 p-5 lg:w-80">
             {header}
             {metersCard}
+            <SaveMenu<DetectiveSave> className="mt-5" mode="detective" onLoad={applySave} />
             <Link
               to="/"
               className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm transition-colors hover:bg-secondary"
@@ -349,9 +400,33 @@ function Detective() {
   // ---------- Sorgu ----------
   const cop = lastTurn?.interrogator;
 
+  const hudItems = [
+    { label: "Şüphe", value: meters.suspicion, color: "var(--stress)" },
+    { label: "Flört", value: meters.flirt, color: "var(--happiness)" },
+    { label: "Anlayış", value: meters.empathy, color: "var(--career)" },
+  ];
+
   return (
     <div className="min-h-dvh">
+      <div className="hud lg:hidden">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto">
+          <span className="chip shrink-0 bg-primary/15 text-primary">{lines.length}. tur</span>
+          {hudItems.map((h) => (
+            <span
+              key={h.label}
+              className="chip shrink-0"
+              style={{
+                color: h.color,
+                background: `color-mix(in oklab, ${h.color} 16%, transparent)`,
+              }}
+            >
+              {h.label} {h.value}
+            </span>
+          ))}
+        </div>
+      </div>
       <div className="mx-auto flex max-w-7xl flex-col gap-5 p-4 md:p-8 lg:flex-row">
+
         <aside className="panel h-fit w-full shrink-0 p-5 lg:sticky lg:top-8 lg:w-80">
           {header}
 
@@ -399,6 +474,14 @@ function Detective() {
               </ul>
             </section>
           )}
+
+          <SaveMenu<DetectiveSave>
+            className="mt-5"
+            mode="detective"
+            canSave={lines.length > 0}
+            snapshot={snapshot}
+            onLoad={applySave}
+          />
 
           <button
             onClick={reset}
