@@ -400,9 +400,33 @@ function Detective() {
   // ---------- Sorgu ----------
   const cop = lastTurn?.interrogator;
 
+  const hudItems = [
+    { label: "Şüphe", value: meters.suspicion, color: "var(--stress)" },
+    { label: "Flört", value: meters.flirt, color: "var(--happiness)" },
+    { label: "Anlayış", value: meters.empathy, color: "var(--career)" },
+  ];
+
   return (
     <div className="min-h-dvh">
+      <div className="hud lg:hidden">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto">
+          <span className="chip shrink-0 bg-primary/15 text-primary">{lines.length}. tur</span>
+          {hudItems.map((h) => (
+            <span
+              key={h.label}
+              className="chip shrink-0"
+              style={{
+                color: h.color,
+                background: `color-mix(in oklab, ${h.color} 16%, transparent)`,
+              }}
+            >
+              {h.label} {h.value}
+            </span>
+          ))}
+        </div>
+      </div>
       <div className="mx-auto flex max-w-7xl flex-col gap-5 p-4 md:p-8 lg:flex-row">
+
         <aside className="panel h-fit w-full shrink-0 p-5 lg:sticky lg:top-8 lg:w-80">
           {header}
 
