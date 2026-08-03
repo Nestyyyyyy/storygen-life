@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -21,6 +21,8 @@ import {
 import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
 import { MatureToggle } from "@/components/MatureToggle";
+import { SaveMenu } from "@/components/SaveMenu";
+import { autoSaveId, writeSave } from "@/lib/saves";
 import {
   interrogate,
   suggestCrime,
