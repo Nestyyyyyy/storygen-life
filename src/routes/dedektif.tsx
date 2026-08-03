@@ -450,6 +450,14 @@ function Detective() {
             </section>
           )}
 
+          <SaveMenu<DetectiveSave>
+            className="mt-5"
+            mode="detective"
+            canSave={lines.length > 0}
+            snapshot={snapshot}
+            onLoad={applySave}
+          />
+
           <button
             onClick={reset}
             className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm transition-colors hover:bg-secondary"
