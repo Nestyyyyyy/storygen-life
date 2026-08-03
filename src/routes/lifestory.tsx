@@ -338,6 +338,7 @@ function LifeStory() {
           <aside className="panel h-fit w-full shrink-0 p-5 lg:w-80">
             {sidebarHeader}
             {statsCard}
+            <SaveMenu<LifeSave> className="mt-5" mode="life" onLoad={applySave} />
             <Link
               to="/"
               className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm text-foreground transition-colors hover:bg-secondary"
@@ -546,6 +547,14 @@ function LifeStory() {
               </ul>
             </section>
           )}
+
+          <SaveMenu<LifeSave>
+            className="mt-5"
+            mode="life"
+            canSave={entries.length > 0}
+            snapshot={snapshot}
+            onLoad={applySave}
+          />
 
           <button
             onClick={reset}
