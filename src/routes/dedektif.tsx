@@ -265,6 +265,7 @@ function Detective() {
           <aside className="panel h-fit w-full shrink-0 p-5 lg:w-80">
             {header}
             {metersCard}
+            <SaveMenu<DetectiveSave> className="mt-5" mode="detective" onLoad={applySave} />
             <Link
               to="/"
               className="mt-5 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border text-sm transition-colors hover:bg-secondary"
