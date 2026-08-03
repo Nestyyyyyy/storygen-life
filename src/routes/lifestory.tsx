@@ -237,6 +237,42 @@ function LifeStory() {
     setIssues({});
   }
 
+  function snapshot(): { name: string; summary: string; data: LifeSave } {
+    return {
+      name: character ? `${character.occupation} · ${age} yaş` : "Hayat",
+      summary: `${entries.length} bölüm · Mutluluk ${stats.happiness} · Servet ${stats.wealth}`,
+      data: { character: character!, stats, deltas, entries, facts, age, mature },
+    };
+  }
+
+  function applySave(data: LifeSave) {
+    setCharacter(data.character);
+    setStats(data.stats);
+    setDeltas(data.deltas ?? {});
+    setEntries(data.entries ?? []);
+    setFacts(data.facts ?? []);
+    setAge(data.age ?? data.character.age);
+    setMature(Boolean(data.mature));
+    setError(null);
+    setIssues({});
+  }
+
+  // Her tur otomatik kayıt
+  useEffect(() => {
+    if (!character || entries.length === 0 || loading) return;
+    const snap = snapshot();
+    writeSave<LifeSave>({
+      id: autoSaveId("life"),
+      mode: "life",
+      name: `Otomatik kayıt · ${snap.name}`,
+      summary: snap.summary,
+      data: snap.data,
+      auto: true,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entries, loading]);
+
+
   const statsCard = (
     <section
       aria-labelledby="stats-heading"
