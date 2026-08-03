@@ -502,9 +502,34 @@ function LifeStory() {
   }
 
   // ---------- Game ----------
+  const hudItems: { label: string; value: number; color: string }[] = [
+    { label: "Mutluluk", value: stats.happiness, color: "var(--happiness)" },
+    { label: "Servet", value: stats.wealth, color: "var(--wealth)" },
+    { label: "Kariyer", value: stats.career, color: "var(--career)" },
+    { label: "Stres", value: stats.stress, color: "var(--stress)" },
+  ];
+
   return (
     <div className="min-h-dvh">
+      <div className="hud lg:hidden">
+        <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-x-auto">
+          <span className="chip shrink-0 bg-primary/15 text-primary">{age} yaş</span>
+          {hudItems.map((h) => (
+            <span
+              key={h.label}
+              className="chip shrink-0"
+              style={{
+                color: h.color,
+                background: `color-mix(in oklab, ${h.color} 16%, transparent)`,
+              }}
+            >
+              {h.label} {h.value}
+            </span>
+          ))}
+        </div>
+      </div>
       <div className="mx-auto flex max-w-7xl flex-col gap-5 p-4 md:p-8 lg:flex-row">
+
         <aside className="panel h-fit w-full shrink-0 p-5 lg:sticky lg:top-8 lg:w-80">
           {sidebarHeader}
 
