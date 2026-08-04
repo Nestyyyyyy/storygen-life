@@ -1,4 +1,7 @@
 // Sorgu (dedektif modu) için sunucu yardımcıları.
+import { tune, type Difficulty } from "./difficulty";
+import { pickBest } from "./story-quality.server";
+
 export const clampMeter = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
@@ -129,11 +132,14 @@ export function judgeAnswer(
   meters: Meters,
   interrogator: Interrogator,
   playerGender: string,
+  difficulty: Difficulty = "normal",
 ): Judgement {
+  const t = tune(difficulty);
   const luck = (meters.empathy + meters.flirt) / 400 - meters.suspicion / 250;
-  const roll = Math.random() + luck;
-  const pro = interrogator.discipline / 100;
-  const d: Meters = { flirt: 0, suspicion: 2, empathy: 0 }; // her tur baskı artar
+  // Zorluk seviyesi hem şansı hem eşiği kaydırır.
+  const roll = Math.random() + luck - t.threshold;
+  const pro = (interrogator.discipline / 100) * (difficulty === "zorlu" ? 1.15 : difficulty === "kolay" ? 0.8 : 1);
+  const d: Meters = { flirt: 0, suspicion: t.pressure, empathy: 0 }; // her tur baskı artar
 
   let result: Judgement["result"] = "karışık";
   let note = "";
@@ -217,7 +223,14 @@ export function judgeAnswer(
     }
   }
 
-  return { result, delta: d, note };
+  // Zorluk dengesi: Şüphe artışı ve olumlu kazançlar seviyeye göre ölçeklenir.
+  const scaled: Meters = {
+    flirt: Math.round(d.flirt >= 0 ? d.flirt * t.gain : d.flirt * t.loss),
+    suspicion: Math.round(d.suspicion >= 0 ? d.suspicion * t.loss : d.suspicion * t.gain),
+    empathy: Math.round(d.empathy >= 0 ? d.empathy * t.gain : d.empathy * t.loss),
+  };
+
+  return { result, delta: scaled, note };
 }
 
 
@@ -263,6 +276,16 @@ const QUESTIONS = [
   "Üstündeki kıyafet o gece giydiğinle aynı mı? Çünkü elimizde bir lif analizi var ve sonucu birazdan gelecek.",
   "Neden ilk ifadende {witness}'ten hiç bahsetmedin? İnsan, tanımadığı birini unutmaz — tanıdığını saklar.",
   "Şu ana kadar anlattıkların üç yerde birbirini tutmuyor. Sana son bir şans veriyorum: baştan, ağır ağır anlat.",
+  "Olay yerinde bir ayakkabı izi var; numarası tam senin numaran. Tesadüf mü diyeceksin?",
+  "{witness2} ile aran nasıl? Çünkü senden bahsederken sesi titriyordu — korkuyor mu, koruyor mu?",
+  "Bu işi tek başına yapamayacağını ikimiz de biliyoruz. Yanındaki kimdi?",
+  "Ceketinin cebinden çıkan şu fiş {time} bir benzinliğe ait. Orada ne işin vardı?",
+  "Neden hâlâ avukat istemedin? Masum insanlar genelde ilk bunu ister.",
+  "Bir hafta sonra taşınmayı planlıyormuşsun. Nereye ve neyle?",
+  "Sana bir isim söyleyeceğim, tepkini izleyeceğim: hazır mısın?",
+  "Kayıtlardaki o dört dakikalık boşluğu doldur; dört dakika, bir hayatı değiştirir.",
+  "Elimizdeki mesaj dökümünde \"halledeceğim\" yazıyor. Neyi halledecektin?",
+  "Annen bu odada olsa aynı cümleleri kurar mıydın? Düşün, sonra cevap ver.",
 ];
 
 const OPTION_SETS: { label: string; kind: AnswerKind }[][] = [
@@ -296,6 +319,24 @@ const OPTION_SETS: { label: string; kind: AnswerKind }[][] = [
     { label: "\"Kahve içmeye dışarıda da devam edebiliriz\" diye fısılda", kind: "flört" },
     { label: "Masaya bak ve tek kelime etmeden bekle", kind: "sessiz" },
   ],
+  [
+    { label: "Beni biriyle karıştırıyorsunuz; ben o mahalleye hiç gitmem", kind: "yalan" },
+    { label: "Orada olduğumu kabul ediyorum, gerisini siz bulun", kind: "doğru" },
+    { label: "\"Bu işi bitirince bir kahve içelim mi?\" diye takıl", kind: "flört" },
+    { label: "Elleri titrerken suçun sebebini anlatmaya başla", kind: "duygu" },
+  ],
+  [
+    { label: "O mesajı ben yazmadım, telefonum başkasının elindeydi", kind: "yalan" },
+    { label: "Anlatacağım ama önce bana bir bardak su verin", kind: "doğru" },
+    { label: "\"Sizin gibi biri neden bu odada çalışıyor?\" diye sor", kind: "flört" },
+    { label: "Gözlerini kapatıp uzun bir sessizliğe çekil", kind: "sessiz" },
+  ],
+  [
+    { label: "Kimseyle ortak çalışmadım; bu işte yalnızdım desin", kind: "yalan" },
+    { label: "Bir isim vereceğim ama karşılığında koruma isteyeceğim", kind: "doğru" },
+    { label: "Yorgun bir gülümsemeyle \"siz de bitkinsiniz\" de", kind: "flört" },
+    { label: "Ailenin bu haberi nasıl karşılayacağını anlatarak dağıl", kind: "duygu" },
+  ],
 ];
 
 const VERDICT_FREED = [
@@ -327,6 +368,7 @@ export function localInterrogationTurn(a: {
   status: "ongoing" | "freed" | "jailed";
   turnNo: number;
   usedQuestions: string[];
+  usedAnswers?: string[];
 }): { reaction: string; question: string; options: { label: string; kind: AnswerKind }[]; verdictText: string; facts: string[] } {
   const p = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const vars: Record<string, string> = {
@@ -365,12 +407,32 @@ export function localInterrogationTurn(a: {
   const candidates = QUESTIONS.filter(
     (q) => !a.usedQuestions.some((u) => u.includes(staticChunk(q))),
   );
-  const question = f(p(candidates.length ? candidates : QUESTIONS));
+  const pool = candidates.length ? candidates : QUESTIONS;
+
+  // Kalite seçimi: birkaç aday (soru + tepki + seçenek seti) üretilir,
+  // puanlayıcı en iyi varyantı seçer.
+  const reaction = a.judgeResult ? pickReaction(a.judgeResult) : "";
+  const best = pickBest(
+    () => {
+      const question = f(p(pool));
+      const options = pickOptionSet();
+      return {
+        title: question.slice(0, 60),
+        narrative: `${reaction} ${question}`.trim(),
+        outcomeText: "",
+        choices: options.map((o, i) => ({ label: o.label, recommended: i === 0 })),
+        options,
+        question,
+      };
+    },
+    { usedTitles: a.usedQuestions, usedChoices: a.usedAnswers ?? [] },
+    4,
+  );
 
   return {
-    reaction: a.judgeResult ? pickReaction(a.judgeResult) : "",
-    question,
-    options: pickOptionSet(),
+    reaction,
+    question: best.scene.question,
+    options: best.scene.options,
     verdictText: "",
     facts: [],
   };

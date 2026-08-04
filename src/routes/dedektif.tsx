@@ -20,6 +20,9 @@ import {
 
 import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
+import { EngineBadge } from "@/components/EngineBadge";
+import { DifficultySelect } from "@/components/DifficultySelect";
+import { type Difficulty } from "@/lib/difficulty";
 import { MatureToggle } from "@/components/MatureToggle";
 import { SaveMenu } from "@/components/SaveMenu";
 import { autoSaveId, writeSave } from "@/lib/saves";
@@ -87,6 +90,8 @@ function Detective() {
   const [name, setName] = useState("");
   const [gender, setGender] = useState(GENDERS[0]);
   const [mature, setMature] = useState(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+  const [engine, setEngine] = useState<"ai" | "local" | null>(null);
 
   const [lines, setLines] = useState<Line[]>([]);
   const [meters, setMeters] = useState(START_METERS);
@@ -109,6 +114,7 @@ function Detective() {
           playerGender: gender,
           playerName: name.trim(),
           mature,
+          difficulty,
           interrogator: lastTurn?.interrogator ?? null,
           meters,
           turnNo: lines.length,
@@ -126,6 +132,7 @@ function Detective() {
             .map((l) => ({ question: l.turn.question, answer: l.answer! })),
         },
       });
+      setEngine(turn.engine);
       setMeters(turn.meters);
       setDelta(turn.delta);
       if (turn.facts.length)
@@ -252,6 +259,7 @@ function Detective() {
       </div>
       <div className="min-w-0">
         <h1 className="truncate text-lg leading-tight font-bold">Dedektif Modu</h1>
+        <EngineBadge engine={engine} className="ml-auto shrink-0" />
         <p className="text-xs text-muted-foreground">Sorgu odası simülasyonu</p>
       </div>
     </div>
@@ -365,6 +373,16 @@ function Detective() {
                   hintPlaceholder="Nasıl bir suç istersin? Örn: parayla ilgili"
                 />
 
+                <DifficultySelect
+                  className="md:col-span-2"
+                  value={difficulty}
+                  onChange={setDifficulty}
+                />
+                <DifficultySelect
+                  className="md:col-span-2"
+                  value={difficulty}
+                  onChange={setDifficulty}
+                />
                 <MatureToggle className="md:col-span-2" value={mature} onChange={setMature} />
 
                 <button
