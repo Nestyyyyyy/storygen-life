@@ -567,7 +567,8 @@ export function generateScene(a: {
     job: a.occupation || "işini arayan biri",
     goal: a.goal || "bir hayali",
   };
-  const fill = (s: string) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
+  const cap = (s: string) => (s ? s[0].toLocaleUpperCase("tr") + s.slice(1) : s);
+  const fill = (s: string) => cap(s.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? ""));
   const opening = !a.action;
   const effOutcome = a.outcome === "neutral" ? "partial" : a.outcome;
   const outcomeText = opening ? "" : freshOutcome(effOutcome);
