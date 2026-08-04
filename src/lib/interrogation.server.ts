@@ -368,6 +368,7 @@ export function localInterrogationTurn(a: {
   status: "ongoing" | "freed" | "jailed";
   turnNo: number;
   usedQuestions: string[];
+  usedAnswers?: string[];
 }): { reaction: string; question: string; options: { label: string; kind: AnswerKind }[]; verdictText: string; facts: string[] } {
   const p = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const vars: Record<string, string> = {
@@ -406,12 +407,32 @@ export function localInterrogationTurn(a: {
   const candidates = QUESTIONS.filter(
     (q) => !a.usedQuestions.some((u) => u.includes(staticChunk(q))),
   );
-  const question = f(p(candidates.length ? candidates : QUESTIONS));
+  const pool = candidates.length ? candidates : QUESTIONS;
+
+  // Kalite seçimi: birkaç aday (soru + tepki + seçenek seti) üretilir,
+  // puanlayıcı en iyi varyantı seçer.
+  const reaction = a.judgeResult ? pickReaction(a.judgeResult) : "";
+  const best = pickBest(
+    () => {
+      const question = f(p(pool));
+      const options = pickOptionSet();
+      return {
+        title: question.slice(0, 60),
+        narrative: `${reaction} ${question}`.trim(),
+        outcomeText: "",
+        choices: options.map((o, i) => ({ label: o.label, recommended: i === 0 })),
+        options,
+        question,
+      };
+    },
+    { usedTitles: a.usedQuestions, usedChoices: a.usedAnswers ?? [] },
+    4,
+  );
 
   return {
-    reaction: a.judgeResult ? pickReaction(a.judgeResult) : "",
-    question,
-    options: pickOptionSet(),
+    reaction,
+    question: best.scene.question,
+    options: best.scene.options,
     verdictText: "",
     facts: [],
   };
