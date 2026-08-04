@@ -528,26 +528,30 @@ function castName(usedFacts: string[]): string {
 function makeEffects(
   outcome: "success" | "partial" | "failure" | "neutral",
   bias: "happiness" | "wealth" | "career",
+  difficulty?: Difficulty,
 ) {
+  const t = tune(difficulty);
+  const up = (n: number) => Math.round(n * t.gain);
+  const down = (n: number) => Math.round(n * t.loss);
   const e = { happiness: 0, wealth: 0, career: 0, stress: 0 };
   if (outcome === "neutral") return e;
   if (outcome === "success") {
-    e[bias] += between(7, 16);
-    e.happiness += between(2, 6);
-    e.stress -= between(3, 8);
+    e[bias] += up(between(7, 16));
+    e.happiness += up(between(2, 6));
+    e.stress -= up(between(3, 8));
   } else if (outcome === "partial") {
-    e[bias] += between(3, 9);
-    e.wealth -= between(0, 5);
-    e.stress += between(2, 6);
+    e[bias] += up(between(3, 9));
+    e.wealth -= down(between(0, 5));
+    e.stress += down(between(2, 6));
   } else {
-    e[bias] -= between(6, 14);
-    e.happiness -= between(3, 9);
-    e.stress += between(6, 13);
+    e[bias] -= down(between(6, 14));
+    e.happiness -= down(between(3, 9));
+    e.stress += down(between(6, 13));
   }
   return e;
 }
 
-export function generateScene(a: {
+export type SceneArgs = {
   occupation: string;
   goal: string;
   action?: string;
@@ -557,7 +561,31 @@ export function generateScene(a: {
   usedFacts: string[];
   usedTitles: string[];
   usedDomains?: string[];
-}): LocalScene {
+  usedNarratives?: string[];
+  usedChoices?: string[];
+  difficulty?: Difficulty;
+};
+
+/**
+ * Kalite seçimli üretici: birkaç aday sahne üretir, kalite puanlayıcısından
+ * (story-quality.server) en yüksek puanı alan varyantı döndürür.
+ */
+export function generateScene(a: SceneArgs): LocalScene {
+  const ctx = {
+    usedTitles: a.usedTitles,
+    usedChoices: a.usedChoices,
+    usedNarratives: a.usedNarratives,
+    usedDomains: a.usedDomains,
+    facts: a.usedFacts,
+  };
+  const { scene, report } = pickBest(() => buildScene(a), ctx, 5);
+  if (report.score < 70)
+    console.warn(`[yerel motor] düşük kaliteli sahne (${report.score}): ${report.issues.join(", ")}`);
+  return scene;
+}
+
+export function buildScene(a: SceneArgs): LocalScene {
+
   const vars: Record<string, string> = {
     name: castName(a.usedFacts),
     pet: one(PETS),
