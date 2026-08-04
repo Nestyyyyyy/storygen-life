@@ -646,7 +646,10 @@ export function buildScene(a: SceneArgs): LocalScene {
 
   const vars: Record<string, string> = {
     name: castName(a.usedFacts),
-    pet: one(PETS),
+    pet: (() => {
+      const knownPet = PETS.find((n) => a.usedFacts.some((f) => f.includes(n)));
+      return knownPet ?? one(PETS);
+    })(),
     place: one(PLACES),
     time: one(TIMES),
     money: one(MONEY),
