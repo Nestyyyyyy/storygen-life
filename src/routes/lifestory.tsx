@@ -332,6 +332,7 @@ function LifeStory() {
       </div>
       <div className="min-w-0">
         <h1 className="truncate text-lg leading-tight font-bold">Hayat Simülatörü</h1>
+        <EngineBadge engine={engine} className="ml-auto shrink-0" />
         <p className="text-xs text-muted-foreground">Yapay zekâ anlatıcı</p>
       </div>
     </div>
@@ -426,6 +427,11 @@ function LifeStory() {
                   </div>
                 </fieldset>
 
+                <DifficultySelect
+                  className="md:col-span-2"
+                  value={difficulty}
+                  onChange={setDifficulty}
+                />
                 <MatureToggle
                   className="md:col-span-2"
                   value={mature}

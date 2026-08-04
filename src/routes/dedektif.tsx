@@ -132,6 +132,7 @@ function Detective() {
             .map((l) => ({ question: l.turn.question, answer: l.answer! })),
         },
       });
+      setEngine(turn.engine);
       setMeters(turn.meters);
       setDelta(turn.delta);
       if (turn.facts.length)
@@ -258,6 +259,7 @@ function Detective() {
       </div>
       <div className="min-w-0">
         <h1 className="truncate text-lg leading-tight font-bold">Dedektif Modu</h1>
+        <EngineBadge engine={engine} className="ml-auto shrink-0" />
         <p className="text-xs text-muted-foreground">Sorgu odası simülasyonu</p>
       </div>
     </div>
@@ -371,6 +373,11 @@ function Detective() {
                   hintPlaceholder="Nasıl bir suç istersin? Örn: parayla ilgili"
                 />
 
+                <DifficultySelect
+                  className="md:col-span-2"
+                  value={difficulty}
+                  onChange={setDifficulty}
+                />
                 <DifficultySelect
                   className="md:col-span-2"
                   value={difficulty}
