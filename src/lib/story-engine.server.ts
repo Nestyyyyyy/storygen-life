@@ -5,6 +5,9 @@
 //  aynı sahnenin iki kez çıkma ihtimali pratikte sıfıra yakındır.
 // ============================================================
 
+import { tune, type Difficulty } from "./difficulty";
+import { pickBest } from "./story-quality.server";
+
 export type Domain =
   | "aşk"
   | "arkadaşlık"
@@ -610,7 +613,7 @@ export function buildScene(a: SceneArgs): LocalScene {
       narrative: `${s.n.map(fill).join(" ")}${maybe(0.5) ? " " + one(SENSES) : ""}`,
       outcomeText,
       choices: [{ label: fill(s.go), recommended: true }],
-      effects: makeEffects(a.outcome === "neutral" ? "failure" : a.outcome, s.bias),
+      effects: makeEffects(a.outcome === "neutral" ? "failure" : a.outcome, s.bias, a.difficulty),
       ageDelta: maybe(0.5) ? 1 : 0,
       facts: [],
       domain: "geçmiş",
@@ -674,7 +677,7 @@ export function buildScene(a: SceneArgs): LocalScene {
     narrative: sentences.join(" "),
     outcomeText,
     choices,
-    effects: opening ? makeEffects("neutral", pack.bias) : makeEffects(a.outcome, pack.bias),
+    effects: opening ? makeEffects("neutral", pack.bias) : makeEffects(a.outcome, pack.bias, a.difficulty),
     ageDelta: opening ? 0 : maybe(0.7) ? 0 : 1,
     facts,
     domain,
