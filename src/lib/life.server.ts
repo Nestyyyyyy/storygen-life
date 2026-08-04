@@ -1,4 +1,4 @@
-import { generateScene } from "./story-engine.server";
+import { generateScene, type SceneArgs } from "./story-engine.server";
 
 export const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
@@ -357,16 +357,6 @@ export type LocalParsed = {
   domain?: string;
 };
 
-export function localLifeEvent(a: {
-  occupation: string;
-  goal: string;
-  action?: string;
-  outcome: "success" | "partial" | "failure" | "neutral";
-  forced: boolean;
-  mature: boolean;
-  usedFacts: string[];
-  usedTitles: string[];
-  usedDomains?: string[];
-}): LocalParsed {
+export function localLifeEvent(a: SceneArgs): LocalParsed {
   return generateScene(a);
 }

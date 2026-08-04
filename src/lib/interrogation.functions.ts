@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import { tune } from "./difficulty";
 import { askAi } from "./life.server";
 import {
   clampMeter,
@@ -34,6 +35,7 @@ const TurnInput = z.object({
   playerGender: z.string(),
   playerName: z.string().default(""),
   mature: z.boolean().default(false),
+  difficulty: z.enum(["kolay", "normal", "zorlu"]).default("normal"),
   interrogator: InterrogatorSchema.nullable().default(null),
   meters: MetersSchema.default({ flirt: 10, suspicion: 45, empathy: 15 }),
   turnNo: z.number().default(0),
@@ -59,6 +61,8 @@ export type InterrogationTurn = {
   status: "ongoing" | "freed" | "jailed";
   verdictText: string;
   facts: string[];
+  /** Bu turu hangi motor üretti. */
+  engine: "ai" | "local";
 };
 
 export const suggestCrime = createServerFn({ method: "POST" })
@@ -127,7 +131,7 @@ export const interrogate = createServerFn({ method: "POST" })
     let delta: Meters = { flirt: 0, suspicion: 0, empathy: 0 };
 
     if (!first) {
-      const j = judgeAnswer(data.answerKind, meters, interrogator, data.playerGender);
+      const j = judgeAnswer(data.answerKind, meters, interrogator, data.playerGender, data.difficulty);
       judgeNote = j.note;
       judgeResult = j.result;
       const next: Meters = {
@@ -147,13 +151,14 @@ export const interrogate = createServerFn({ method: "POST" })
     const turnNo = data.turnNo + 1;
     let status: InterrogationTurn["status"] = "ongoing";
     if (!first) {
+      const bias = tune(data.difficulty).verdictBias;
       if (meters.suspicion >= 100) status = "jailed";
-      else if (turnNo >= 6 && meters.suspicion <= 22) status = "freed";
+      else if (turnNo >= 6 && meters.suspicion <= 22 + bias) status = "freed";
       else if (turnNo >= 5 && meters.flirt >= 75 && meters.suspicion < 45) {
         // Etkilemek yeter demek değil: profesyonellik son anda üstün gelebilir.
         status = Math.random() < 0.3 + interrogator.discipline / 250 ? "jailed" : "freed";
       } else if (turnNo >= 10) {
-        status = meters.suspicion <= 55 ? "freed" : "jailed";
+        status = meters.suspicion <= 55 + bias ? "freed" : "jailed";
       }
     }
 
@@ -216,17 +221,20 @@ ${statusRule}
 Çeşitlilik anahtarı: ${nonce}`;
 
     let parsed: Record<string, unknown> = {};
+    let engine: InterrogationTurn["engine"] = "ai";
     try {
       parsed = await askAi(system, user, 1.05, status === "ongoing" ? ["question"] : ["verdictText"]);
     } catch {
 
       // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel sorgu motoru devralır.
+      engine = "local";
       parsed = localInterrogationTurn({
         interrogator,
         judgeResult,
         status,
         turnNo,
         usedQuestions: data.history.map((h) => h.question),
+        usedAnswers: data.history.map((h) => h.answer),
       }) as unknown as Record<string, unknown>;
     }
 
@@ -275,5 +283,6 @@ ${statusRule}
       status,
       verdictText: status === "ongoing" ? "" : String(parsed.verdictText ?? ""),
       facts,
+      engine,
     };
   });

@@ -32,6 +32,7 @@ const InputSchema = z.object({
     .default([]),
   facts: z.array(z.string()).default([]),
   mature: z.boolean().default(false),
+  difficulty: z.enum(["kolay", "normal", "zorlu"]).default("normal"),
   action: z.string().optional(),
 });
 
@@ -65,6 +66,8 @@ export type LifeTurn = {
   outcomeText: string;
   kind: "choice" | "forced";
   facts: string[];
+  /** Bu turu hangi motor üretti: gerçek yapay zekâ mı, kredisiz yerel motor mu. */
+  engine: "ai" | "local";
 };
 
 export type FieldIssues = Partial<Record<"occupation" | "personality" | "goal", string>>;
@@ -179,7 +182,7 @@ nihai hedef: "${data.goal}"`;
 export const generateLifeEvent = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<LifeTurn> => {
-    const { character, stats, history, action, facts, mature } = data;
+    const { character, stats, history, action, facts, mature, difficulty } = data;
 
     const matureRule = mature
       ? `YETİŞKİN MODU AÇIK (18+): Karakter yetişkin ve sahneler yetişkin dünyasında geçer. Temalar sertleşsin: tutku ve arzu, yasak/gizli ilişki, aldatma ve kıskançlık, ayrılık, borç ve tefeci baskısı, kumar, alkol ve bağımlılık, suç ve şiddetin gölgesi, hastalık, ölüm ve yas, ahlaki açmazlar. Dil yetişkin ve keskin olabilir; yerinde bir küfür geçebilir.
@@ -271,11 +274,13 @@ Kariyerle başlama; kişisel/duygusal bir anla başla. Daha önce yazdığın hi
 outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
     let parsed: Record<string, unknown>;
+    let engine: LifeTurn["engine"] = "ai";
     try {
       parsed = await askAi(system, userMsg, action ? 1.05 : 1.2, ["title", "narrative", "choices"]);
     } catch {
 
       // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel hikâye motoru devralır.
+      engine = "local";
       parsed = localLifeEvent({
         occupation: character.occupation,
         goal: character.goal,
@@ -283,8 +288,11 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
         outcome,
         forced,
         mature,
+        difficulty,
         usedFacts: facts,
         usedTitles: history.map((h) => h.event),
+        usedChoices: history.map((h) => h.choice).filter(Boolean),
+        usedNarratives: history.map((h) => h.detail ?? "").filter(Boolean),
       }) as unknown as Record<string, unknown>;
     }
 
@@ -350,6 +358,7 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
       kind,
       choices,
       facts: newFacts,
+      engine,
 
       effects,
       delta: {
