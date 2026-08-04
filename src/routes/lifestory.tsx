@@ -26,6 +26,9 @@ import {
 import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
 import { DeltaChips } from "@/components/DeltaChips";
+import { EngineBadge } from "@/components/EngineBadge";
+import { DifficultySelect } from "@/components/DifficultySelect";
+import { type Difficulty } from "@/lib/difficulty";
 import { MatureToggle } from "@/components/MatureToggle";
 import { SaveMenu } from "@/components/SaveMenu";
 import { autoSaveId, writeSave } from "@/lib/saves";
@@ -110,6 +113,8 @@ function LifeStory() {
   const [custom, setCustom] = useState("");
   const [issues, setIssues] = useState<FieldIssues>({});
   const [mature, setMature] = useState(false);
+  const [difficulty, setDifficulty] = useState<Difficulty>("normal");
+  const [engine, setEngine] = useState<"ai" | "local" | null>(null);
 
 
   const [form, setForm] = useState({
@@ -130,6 +135,7 @@ function LifeStory() {
           stats: base,
           facts,
           mature,
+          difficulty,
           history: entries
             .filter((e) => e.chosen)
             .map((e) => ({
@@ -140,6 +146,7 @@ function LifeStory() {
           action,
         },
       });
+      setEngine(turn.engine);
       setDeltas(turn.delta);
       setStats(turn.effects);
       setAge(turn.age);
