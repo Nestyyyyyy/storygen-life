@@ -50,6 +50,18 @@ const PLACES = [
   "camı buğulanmış bir esnaf lokantasında",
   "kimsenin uğramadığı bir park kenarında",
   "bitmemiş bir inşaatın yanındaki boş arsada",
+  "kapanmak üzere olan bir kitapçının raflarının arasında",
+  "sabah servisini bekleyen boş bir fabrika kantininde",
+  "cami avlusunda, güvercinlerin arasında",
+  "iki otobüs arası bekleyen bir terminal salonunda",
+  "kirası ödenmemiş küçük bir dükkânın kepenginin önünde",
+  "sahaftan aldığın kitabın kokusunun sindiği odanda",
+  "denize inen dik bir merdivenin son basamağında",
+  "yeni taşınılan evin hâlâ kolilerle dolu salonunda",
+  "hastane bahçesindeki sigara içilen köşede",
+  "nikâh salonunun kalabalık koridorunda",
+  "gece nöbetinde ışığı yanan tek pencerenin ardında",
+  "mezarlığın kapısındaki çiçekçi tezgâhının önünde",
 ];
 
 const TIMES = [
@@ -63,9 +75,17 @@ const TIMES = [
   "elektrikler kesildiği o akşam",
   "ilk kar düşerken",
   "ay sonuna üç gün kala",
+  "ramazan gecesi sahura doğru",
+  "yılbaşına iki gün kala",
+  "sabah ezanı okunurken",
+  "kar yağışı trafiği kilitlerken",
+  "okulların kapandığı ilk gün",
+  "elektrik faturasının geldiği akşam",
+  "ilkbaharın ilk sıcak gününde",
+  "bir cenaze dönüşü",
 ];
 
-const MONEY = ["3.500 lira", "8.200 lira", "15 bin lira", "27 bin lira", "birkaç bin lira", "aylık maaşın kadar bir para", "60 bin lira", "iki kiralık bir meblağ"];
+const MONEY = ["4.750 lira", "11 bin lira", "iki maaşlık bir borç", "yüz dolar bozdurmalık", "kirasının yarısı kadar", "3.500 lira", "8.200 lira", "15 bin lira", "27 bin lira", "birkaç bin lira", "aylık maaşın kadar bir para", "60 bin lira", "iki kiralık bir meblağ"];
 
 const SENSES = [
   "Odada demli çay kokusu var; nedense bu, her şeyi daha gerçek yapıyor.",
@@ -76,6 +96,12 @@ const SENSES = [
   "Boğazında düğümlenen şeyin adını koyamıyorsun.",
   "Bir an, on yıl önceki hâlinin bunu nasıl karşılayacağını düşünüyorsun.",
   "Camdaki yansımanda kendini yaşından biraz daha yorgun görüyorsun.",
+  "Uzaktan bir düğün konvoyunun kornaları geliyor; hayat başkalarına devam ediyor.",
+  "Parmaklarının arasında çevirdiğin anahtarlık, söylemediklerinin ağırlığını taşıyor.",
+  "Ekmek fırınının kokusu sokağı doldururken karnının aç olmadığını fark ediyorsun.",
+  "Radyoda çalan şarkı tam da bu ana denk geliyor; hayat bazen fazla ironik.",
+  "Ayakkabının tabanındaki delikten içeri su sızıyor; bunu bugün düşünmemen gerek.",
+  "Bir kedi ayaklarının dibine sokuluyor; kimsenin sormadığını o soruyor gibi.",
 ];
 
 const HOOKS = [
@@ -86,6 +112,35 @@ const HOOKS = [
   "Zamanın var gibi hissediyorsun; oysa yok.",
   "Kaçmak da bir seçim; kalmak da bedelli.",
   "Geri dönüşü olmayan kapıların önünde insan hep aynı şeyi hisseder: hafif bir baş dönmesi.",
+  "Doğru cevabın olmadığı sorulardan biri bu; sadece daha az yanlış olanı var.",
+  "Yıllar sonra bu anı anlatırken hangi kelimeyi seçeceğini şimdiden merak ediyorsun.",
+  "Kimse sana ne yapman gerektiğini söylemeyecek; bu sefer sadece sen varsın.",
+  "Bir tarafın kalkıp gitmek, diğer tarafın sonuna kadar kalmak istiyor.",
+  "İçinden bir ses \"bu kadarı da fazla\" diyor; başka bir ses \"tam sırası\" diyor.",
+];
+
+// Her alana eklenen evrensel komplikasyon/bahis yuvaları: havuzu büyütür,
+// aynı alanın iki kez aynı şekilde kurulmasını zorlaştırır.
+const UNIVERSAL_COMPLICATIONS = [
+  "Kimseye söylemediğin bir hesap var ve bu mesele o hesaba dokunuyor.",
+  "Zamanlaman berbat: tam da her şeyi toparlamaya başlamıştın.",
+  "Doğru olanı biliyorsun; sorun, doğru olanın pahalı olması.",
+  "Aynı hatayı bir kez daha yapma ihtimali seni en çok korkutan şey.",
+  "Karşı taraf senden emin görünüyor; oysa sen kendinden emin değilsin.",
+];
+
+const UNIVERSAL_STAKES = [
+  "Kazanırsan kimse fark etmeyecek; kaybedersen herkes duyacak.",
+  "Bugün vereceğin cevap, önümüzdeki aylara ton ton yük bindirebilir.",
+  "Bir yol huzur, öbür yol hikâye; ikisini birden alamıyorsun.",
+  "Kendine karşı dürüst olacaksan tam sırası.",
+];
+
+// Süreklilik: geçmişte kurulmuş bir "gerçeğe" doğrudan geri dönen cümleler.
+const CALLBACKS = [
+  "{fact} — bu mesele oraya da dokunuyor.",
+  "Aklına yine şu geliyor: {fact}",
+  "Geçmişte kalan bir ayrıntı bugün masaya geliyor: {fact}",
 ];
 
 // --- Alan bazlı yuvalar -------------------------------------------------
@@ -633,13 +688,23 @@ export function buildScene(a: SceneArgs): LocalScene {
 
   const extra = a.mature ? MATURE_EXTRAS[domain] : undefined;
   const openers = extra ? [...pack.openers, ...extra.openers] : pack.openers;
-  const complications = extra ? [...pack.complications, ...extra.complications] : pack.complications;
+  const complications = [
+    ...(extra ? [...pack.complications, ...extra.complications] : pack.complications),
+    ...UNIVERSAL_COMPLICATIONS,
+  ];
+  const stakes = [...pack.stakes, ...UNIVERSAL_STAKES];
 
   const sentences = [
     fill(one(openers)),
     fill(one(complications)),
-    fill(one(pack.stakes)),
+    fill(one(stakes)),
   ];
+  // Süreklilik kuralı: elde kalıcı gerçek varsa ara sıra ona geri dön.
+  const recallable = a.usedFacts.filter((f) => f.length > 8 && f.length < 120);
+  if (recallable.length && maybe(0.35)) {
+    const fact = one(recallable).replace(/[.!?]$/, "");
+    sentences.push(one(CALLBACKS).replace("{fact}", fact));
+  }
   if (maybe(0.6)) sentences.splice(2, 0, one(SENSES));
   if (maybe(0.5)) sentences.push(one(HOOKS));
 
