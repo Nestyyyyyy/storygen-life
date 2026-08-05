@@ -628,7 +628,7 @@ export type SceneArgs = {
  * Kalite seçimli üretici: birkaç aday sahne üretir, kalite puanlayıcısından
  * (story-quality.server) en yüksek puanı alan varyantı döndürür.
  */
-export function generateScene(a: SceneArgs): LocalScene {
+export function generateScene(a: SceneArgs): LocalScene & { quality: QualityAudit } {
   const ctx = {
     usedTitles: a.usedTitles,
     usedChoices: a.usedChoices,
@@ -636,11 +636,12 @@ export function generateScene(a: SceneArgs): LocalScene {
     usedDomains: a.usedDomains,
     facts: a.usedFacts,
   };
-  const { scene, report } = pickBest(() => buildScene(a), ctx, 5);
+  const { scene, report, audit } = pickBest(() => buildScene(a), ctx, a.bestOf ?? 5);
   if (report.score < 70)
     console.warn(`[yerel motor] düşük kaliteli sahne (${report.score}): ${report.issues.join(", ")}`);
-  return scene;
+  return { ...scene, quality: audit };
 }
+
 
 export function buildScene(a: SceneArgs): LocalScene {
 
