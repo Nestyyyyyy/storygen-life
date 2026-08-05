@@ -95,7 +95,7 @@ function Detective() {
   const [mature, setMature] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [engine, setEngine] = useState<"ai" | "local" | null>(null);
-  const [bestOf, setBestOf] = useState<BestOf>(4 as BestOf);
+  const [bestOf, setBestOf] = useState<BestOf>(5);
   const [showReport, setShowReport] = useState(false);
 
   const [lines, setLines] = useState<Line[]>([]);
