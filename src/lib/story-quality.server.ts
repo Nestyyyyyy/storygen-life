@@ -82,11 +82,18 @@ const CLICHE = [
 /** Bir sahneyi 0-100 arası puanlar; düşük puanın nedenlerini de döndürür. */
 export function scoreScene(scene: QualityInput, ctx: QualityContext = {}): QualityReport {
   const issues: string[] = [];
+  const breakdown: QualityBreakdownItem[] = [];
   let score = 100;
   const penalty = (n: number, why: string) => {
     score -= n;
     issues.push(why);
+    breakdown.push({ reason: why, delta: -n });
   };
+  const bonus = (n: number, why: string) => {
+    score += n;
+    breakdown.push({ reason: why, delta: n });
+  };
+
 
   // 1) Şablon sızıntısı — {name} gibi doldurulmamış yuvalar affedilmez.
   if (/\{[a-z]+\}/i.test(`${scene.title} ${scene.narrative} ${scene.outcomeText}`))
