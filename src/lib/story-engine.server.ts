@@ -6,7 +6,7 @@
 // ============================================================
 
 import { tune, type Difficulty } from "./difficulty";
-import { pickBest } from "./story-quality.server";
+import { pickBest, type QualityAudit } from "./story-quality.server";
 
 export type Domain =
   | "aşk"
@@ -622,6 +622,8 @@ export type SceneArgs = {
   usedNarratives?: string[];
   usedChoices?: string[];
   difficulty?: Difficulty;
+  /** Kalite değerlendirmesinde üretilecek aday sayısı (best-of-N). */
+  bestOf?: number;
 };
 
 /**
