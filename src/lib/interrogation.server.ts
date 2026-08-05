@@ -1,6 +1,6 @@
 // Sorgu (dedektif modu) için sunucu yardımcıları.
 import { tune, type Difficulty } from "./difficulty";
-import { pickBest } from "./story-quality.server";
+import { pickBest, type QualityAudit } from "./story-quality.server";
 
 export const clampMeter = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
@@ -369,7 +369,9 @@ export function localInterrogationTurn(a: {
   turnNo: number;
   usedQuestions: string[];
   usedAnswers?: string[];
-}): { reaction: string; question: string; options: { label: string; kind: AnswerKind }[]; verdictText: string; facts: string[] } {
+  /** Kalite değerlendirmesinde üretilecek aday sayısı (best-of-N). */
+  bestOf?: number;
+}): { reaction: string; question: string; options: { label: string; kind: AnswerKind }[]; verdictText: string; facts: string[]; quality?: QualityAudit } {
   const p = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
   const vars: Record<string, string> = {
     name: a.interrogator.name,
@@ -426,7 +428,7 @@ export function localInterrogationTurn(a: {
       };
     },
     { usedTitles: a.usedQuestions, usedChoices: a.usedAnswers ?? [] },
-    4,
+    a.bestOf ?? 4,
   );
 
   return {
@@ -435,5 +437,6 @@ export function localInterrogationTurn(a: {
     options: best.scene.options,
     verdictText: "",
     facts: [],
+    quality: best.audit,
   };
 }
