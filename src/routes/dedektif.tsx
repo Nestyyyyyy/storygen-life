@@ -22,6 +22,9 @@ import { StatBar } from "@/components/StatBar";
 import { CharacterField } from "@/components/CharacterField";
 import { EngineBadge } from "@/components/EngineBadge";
 import { DifficultySelect } from "@/components/DifficultySelect";
+import { BestOfSelect } from "@/components/BestOfSelect";
+import { QualityReportPanel } from "@/components/QualityReportPanel";
+import { type BestOf } from "@/lib/quality-types";
 import { type Difficulty } from "@/lib/difficulty";
 import { MatureToggle } from "@/components/MatureToggle";
 import { SaveMenu } from "@/components/SaveMenu";
@@ -92,6 +95,8 @@ function Detective() {
   const [mature, setMature] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [engine, setEngine] = useState<"ai" | "local" | null>(null);
+  const [bestOf, setBestOf] = useState<BestOf>(5);
+  const [showReport, setShowReport] = useState(false);
 
   const [lines, setLines] = useState<Line[]>([]);
   const [meters, setMeters] = useState(START_METERS);
@@ -115,6 +120,7 @@ function Detective() {
           playerName: name.trim(),
           mature,
           difficulty,
+          bestOf,
           interrogator: lastTurn?.interrogator ?? null,
           meters,
           turnNo: lines.length,
@@ -378,10 +384,12 @@ function Detective() {
                   value={difficulty}
                   onChange={setDifficulty}
                 />
-                <DifficultySelect
+                <BestOfSelect
                   className="md:col-span-2"
-                  value={difficulty}
-                  onChange={setDifficulty}
+                  value={bestOf}
+                  onChange={setBestOf}
+                  showReport={showReport}
+                  onShowReportChange={setShowReport}
                 />
                 <MatureToggle className="md:col-span-2" value={mature} onChange={setMature} />
 
@@ -571,6 +579,8 @@ function Detective() {
                 {t.question && (
                   <p className="mt-4 text-lg leading-relaxed font-semibold">“{t.question}”</p>
                 )}
+
+                {showReport && <QualityReportPanel audit={t.quality} />}
 
                 {t.verdictText && (
                   <p

@@ -28,6 +28,9 @@ import { CharacterField } from "@/components/CharacterField";
 import { DeltaChips } from "@/components/DeltaChips";
 import { EngineBadge } from "@/components/EngineBadge";
 import { DifficultySelect } from "@/components/DifficultySelect";
+import { BestOfSelect } from "@/components/BestOfSelect";
+import { QualityReportPanel } from "@/components/QualityReportPanel";
+import { type BestOf } from "@/lib/quality-types";
 import { type Difficulty } from "@/lib/difficulty";
 import { MatureToggle } from "@/components/MatureToggle";
 import { SaveMenu } from "@/components/SaveMenu";
@@ -115,6 +118,8 @@ function LifeStory() {
   const [mature, setMature] = useState(false);
   const [difficulty, setDifficulty] = useState<Difficulty>("normal");
   const [engine, setEngine] = useState<"ai" | "local" | null>(null);
+  const [bestOf, setBestOf] = useState<BestOf>(5);
+  const [showReport, setShowReport] = useState(false);
 
 
   const [form, setForm] = useState({
@@ -136,6 +141,7 @@ function LifeStory() {
           facts,
           mature,
           difficulty,
+          bestOf,
           history: entries
             .filter((e) => e.chosen)
             .map((e) => ({
@@ -432,6 +438,13 @@ function LifeStory() {
                   value={difficulty}
                   onChange={setDifficulty}
                 />
+                <BestOfSelect
+                  className="md:col-span-2"
+                  value={bestOf}
+                  onChange={setBestOf}
+                  showReport={showReport}
+                  onShowReportChange={setShowReport}
+                />
                 <MatureToggle
                   className="md:col-span-2"
                   value={mature}
@@ -666,6 +679,8 @@ function LifeStory() {
                   <p className="mt-2 leading-relaxed text-muted-foreground">
                     {entry.turn.narrative}
                   </p>
+
+                  {showReport && <QualityReportPanel audit={entry.turn.quality} />}
 
                   {entry.chosen ? (
                     <p className="mt-4 rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm text-primary">

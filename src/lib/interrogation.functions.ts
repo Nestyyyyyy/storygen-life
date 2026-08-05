@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { tune } from "./difficulty";
+import type { QualityAudit } from "./quality-types";
 import { askAi } from "./life.server";
 import {
   clampMeter,
@@ -36,6 +37,8 @@ const TurnInput = z.object({
   playerName: z.string().default(""),
   mature: z.boolean().default(false),
   difficulty: z.enum(["kolay", "normal", "zorlu"]).default("normal"),
+  /** Kredisiz motorda kaç aday üretilip en iyisi seçilsin (best-of-N). */
+  bestOf: z.number().int().min(1).max(12).default(4),
   interrogator: InterrogatorSchema.nullable().default(null),
   meters: MetersSchema.default({ flirt: 10, suspicion: 45, empathy: 15 }),
   turnNo: z.number().default(0),
@@ -63,6 +66,8 @@ export type InterrogationTurn = {
   facts: string[];
   /** Bu turu hangi motor üretti. */
   engine: "ai" | "local";
+  /** Yerel motorun bu turda ürettiği adaylar ve kalite puan kırılımları. */
+  quality?: QualityAudit;
 };
 
 export const suggestCrime = createServerFn({ method: "POST" })
@@ -222,20 +227,24 @@ ${statusRule}
 
     let parsed: Record<string, unknown> = {};
     let engine: InterrogationTurn["engine"] = "ai";
+    let quality: QualityAudit | undefined;
     try {
       parsed = await askAi(system, user, 1.05, status === "ongoing" ? ["question"] : ["verdictText"]);
     } catch {
 
       // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel sorgu motoru devralır.
       engine = "local";
-      parsed = localInterrogationTurn({
+      const local = localInterrogationTurn({
         interrogator,
         judgeResult,
         status,
         turnNo,
         usedQuestions: data.history.map((h) => h.question),
         usedAnswers: data.history.map((h) => h.answer),
-      }) as unknown as Record<string, unknown>;
+        bestOf: data.bestOf,
+      });
+      quality = local.quality;
+      parsed = local as unknown as Record<string, unknown>;
     }
 
     const rawOptions = Array.isArray(parsed.options) ? parsed.options : [];
@@ -284,5 +293,6 @@ ${statusRule}
       verdictText: status === "ongoing" ? "" : String(parsed.verdictText ?? ""),
       facts,
       engine,
+      quality,
     };
   });

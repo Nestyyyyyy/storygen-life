@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+import type { QualityAudit } from "./quality-types";
 import { askAi, clamp, fallbackSuggestion, FIELD_TR, localLifeEvent, openingSeed } from "./life.server";
 
 const StatsSchema = z.object({
@@ -33,6 +34,8 @@ const InputSchema = z.object({
   facts: z.array(z.string()).default([]),
   mature: z.boolean().default(false),
   difficulty: z.enum(["kolay", "normal", "zorlu"]).default("normal"),
+  /** Kredisiz motorda kaç aday üretilip en iyisi seçilsin (best-of-N). */
+  bestOf: z.number().int().min(1).max(12).default(5),
   action: z.string().optional(),
 });
 
@@ -68,6 +71,8 @@ export type LifeTurn = {
   facts: string[];
   /** Bu turu hangi motor üretti: gerçek yapay zekâ mı, kredisiz yerel motor mu. */
   engine: "ai" | "local";
+  /** Yerel motorun bu turda ürettiği adaylar ve kalite puan kırılımları. */
+  quality?: QualityAudit;
 };
 
 export type FieldIssues = Partial<Record<"occupation" | "personality" | "goal", string>>;
@@ -182,7 +187,7 @@ nihai hedef: "${data.goal}"`;
 export const generateLifeEvent = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
   .handler(async ({ data }): Promise<LifeTurn> => {
-    const { character, stats, history, action, facts, mature, difficulty } = data;
+    const { character, stats, history, action, facts, mature, difficulty, bestOf } = data;
 
     const matureRule = mature
       ? `YETİŞKİN MODU AÇIK (18+): Karakter yetişkin ve sahneler yetişkin dünyasında geçer. Temalar sertleşsin: tutku ve arzu, yasak/gizli ilişki, aldatma ve kıskançlık, ayrılık, borç ve tefeci baskısı, kumar, alkol ve bağımlılık, suç ve şiddetin gölgesi, hastalık, ölüm ve yas, ahlaki açmazlar. Dil yetişkin ve keskin olabilir; yerinde bir küfür geçebilir.
@@ -275,13 +280,14 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
 
     let parsed: Record<string, unknown>;
     let engine: LifeTurn["engine"] = "ai";
+    let quality: QualityAudit | undefined;
     try {
       parsed = await askAi(system, userMsg, action ? 1.05 : 1.2, ["title", "narrative", "choices"]);
     } catch {
 
       // Yapay zekâya ulaşılamadı (anahtar/kota/ağ): yerel hikâye motoru devralır.
       engine = "local";
-      parsed = localLifeEvent({
+      const local = localLifeEvent({
         occupation: character.occupation,
         goal: character.goal,
         action,
@@ -293,7 +299,10 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
         usedTitles: history.map((h) => h.event),
         usedChoices: history.map((h) => h.choice).filter(Boolean),
         usedNarratives: history.map((h) => h.detail ?? "").filter(Boolean),
-      }) as unknown as Record<string, unknown>;
+        bestOf,
+      });
+      quality = local.quality;
+      parsed = local as unknown as Record<string, unknown>;
     }
 
 
@@ -359,6 +368,7 @@ outcomeText boş, tüm effects 0, ageDelta 0, kind "choice".`;
       choices,
       facts: newFacts,
       engine,
+      quality,
 
       effects,
       delta: {

@@ -1,4 +1,5 @@
 import { generateScene, type SceneArgs } from "./story-engine.server";
+import type { QualityAudit } from "./quality-types";
 
 export const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
@@ -355,6 +356,8 @@ export type LocalParsed = {
   ageDelta: number;
   facts: string[];
   domain?: string;
+  /** Kredisiz motorun aday/puan raporu. */
+  quality?: QualityAudit;
 };
 
 export function localLifeEvent(a: SceneArgs): LocalParsed {
