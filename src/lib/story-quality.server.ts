@@ -22,33 +22,14 @@ export type QualityContext = {
   facts?: string[];
 };
 
-/** Puan kırılımı: her kalem puanı ne kadar düşürdü ya da yükseltti. */
-export type QualityBreakdownItem = { reason: string; delta: number };
+export type { QualityBreakdownItem, QualityCandidate, QualityAudit } from "./quality-types";
+import type { QualityBreakdownItem, QualityAudit } from "./quality-types";
 
 export type QualityReport = {
   score: number; // 0-100
   issues: string[];
   breakdown: QualityBreakdownItem[];
 };
-
-/** Rapor panelinde gösterilen aday özeti. */
-export type QualityCandidate = {
-  index: number;
-  score: number;
-  title: string;
-  preview: string;
-  chosen: boolean;
-  breakdown: QualityBreakdownItem[];
-};
-
-/** Bir turda üretilen tüm adaylar ve seçim bilgisi. */
-export type QualityAudit = {
-  tries: number;
-  chosenIndex: number;
-  chosenScore: number;
-  candidates: QualityCandidate[];
-};
-
 
 const words = (s: string) => s.trim().split(/\s+/).filter(Boolean);
 const sentences = (s: string) =>

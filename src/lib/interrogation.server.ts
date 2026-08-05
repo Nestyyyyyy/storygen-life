@@ -1,6 +1,7 @@
 // Sorgu (dedektif modu) için sunucu yardımcıları.
 import { tune, type Difficulty } from "./difficulty";
-import { pickBest, type QualityAudit } from "./story-quality.server";
+import { pickBest } from "./story-quality.server";
+import type { QualityAudit } from "./quality-types";
 
 export const clampMeter = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 

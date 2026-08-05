@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { tune } from "./difficulty";
-import type { QualityAudit } from "./story-quality.server";
+import type { QualityAudit } from "./quality-types";
 import { askAi } from "./life.server";
 import {
   clampMeter,

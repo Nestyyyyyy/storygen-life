@@ -1,5 +1,5 @@
 import { generateScene, type SceneArgs } from "./story-engine.server";
-import type { QualityAudit } from "./story-quality.server";
+import type { QualityAudit } from "./quality-types";
 
 export const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 

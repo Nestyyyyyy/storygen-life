@@ -6,7 +6,8 @@
 // ============================================================
 
 import { tune, type Difficulty } from "./difficulty";
-import { pickBest, type QualityAudit } from "./story-quality.server";
+import { pickBest } from "./story-quality.server";
+import type { QualityAudit } from "./quality-types";
 
 export type Domain =
   | "aşk"

@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import type { QualityAudit } from "./story-quality.server";
+import type { QualityAudit } from "./quality-types";
 import { askAi, clamp, fallbackSuggestion, FIELD_TR, localLifeEvent, openingSeed } from "./life.server";
 
 const StatsSchema = z.object({
