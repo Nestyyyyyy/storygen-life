@@ -141,7 +141,8 @@ export function scoreScene(scene: QualityInput, ctx: QualityContext = {}): Quali
 
   // 6) Süreklilik ödülü: bilinen bir gerçekteki isme geri dönmek iyidir.
   const known = (ctx.facts ?? []).flatMap((f) => f.match(/\p{Lu}\p{Ll}{2,}/gu) ?? []);
-  if (known.length && known.some((n) => scene.narrative.includes(n))) score += 8;
+  if (known.length && known.some((n) => scene.narrative.includes(n)))
+    bonus(8, "süreklilik ödülü: bilinen bir isme geri dönüldü");
 
   // 7) Klişe cezası.
   const low = norm(scene.narrative);
@@ -155,7 +156,7 @@ export function scoreScene(scene: QualityInput, ctx: QualityContext = {}): Quali
     if (os < 2) penalty(8, "sonuç metni tek cümle");
   }
 
-  return { score: Math.max(0, Math.min(100, Math.round(score))), issues };
+  return { score: Math.max(0, Math.min(100, Math.round(score))), issues, breakdown };
 }
 
 /** N aday üret, en yüksek puanlıyı seç. Aynı puanda ilk aday kazanır. */
@@ -163,16 +164,33 @@ export function pickBest<T extends QualityInput>(
   make: () => T,
   ctx: QualityContext = {},
   tries = 4,
-): { scene: T; report: QualityReport } {
-  let best: { scene: T; report: QualityReport } | null = null;
-  for (let i = 0; i < Math.max(1, tries); i++) {
+): { scene: T; report: QualityReport; audit: QualityAudit } {
+  const n = Math.max(1, Math.min(12, Math.round(tries)));
+  const all: { scene: T; report: QualityReport }[] = [];
+  let bestIdx = 0;
+  for (let i = 0; i < n; i++) {
     const scene = make();
     const report = scoreScene(scene, ctx);
-    if (!best || report.score > best.report.score) best = { scene, report };
-    if (best.report.score >= 92) break; // yeterince iyi
+    all.push({ scene, report });
+    if (report.score > all[bestIdx].report.score) bestIdx = i;
+    if (all[bestIdx].report.score >= 92) break; // yeterince iyi
   }
-  return best!;
+  const audit: QualityAudit = {
+    tries: all.length,
+    chosenIndex: bestIdx,
+    chosenScore: all[bestIdx].report.score,
+    candidates: all.map((c, i) => ({
+      index: i,
+      score: c.report.score,
+      title: c.scene.title,
+      preview: c.scene.narrative.slice(0, 140),
+      chosen: i === bestIdx,
+      breakdown: c.report.breakdown,
+    })),
+  };
+  return { scene: all[bestIdx].scene, report: all[bestIdx].report, audit };
 }
+
 
 export type EvaluationReport = {
   samples: number;
