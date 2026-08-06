@@ -20,7 +20,6 @@ import {
   MessagesSquare,
 } from "lucide-react";
 
-
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -62,7 +61,6 @@ const COMPANION_STATS = [
   { label: "Güç", Icon: Zap, color: "var(--wealth)" },
   { label: "Tehlike", Icon: Flame, color: "var(--stress)" },
 ];
-
 
 const STEPS = [
   {
@@ -226,7 +224,6 @@ function Home() {
             </span>
           </Link>
         </section>
-
 
         {/* Nasıl çalışır */}
         <section aria-labelledby="how-heading" className="panel p-6">

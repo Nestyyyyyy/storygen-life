@@ -348,7 +348,9 @@ function CharacterMode() {
                 <p className="text-xs text-muted-foreground">{companion.title}</p>
               </div>
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{companion.persona}</p>
+            <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+              {companion.persona}
+            </p>
             <dl className="mt-3 space-y-2 text-xs">
               <div>
                 <dt className="font-semibold text-foreground">Dünya</dt>
@@ -410,7 +412,6 @@ function CharacterMode() {
           <div
             ref={boxRef}
             className="panel max-h-[68dvh] min-h-[42dvh] space-y-5 overflow-y-auto p-4 sm:p-6"
-
             aria-live="polite"
           >
             {messages.map((m) =>
