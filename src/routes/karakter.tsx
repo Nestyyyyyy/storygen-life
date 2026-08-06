@@ -406,11 +406,11 @@ function CharacterMode() {
         </aside>
 
         {/* Sohbet */}
-        <section className="flex min-h-[70dvh] flex-col">
+        <section className="flex flex-col">
           <div
             ref={boxRef}
-            className="panel flex-1 space-y-5 overflow-y-auto p-4 sm:p-6"
-            style={{ maxHeight: "72dvh" }}
+            className="panel max-h-[68dvh] min-h-[42dvh] space-y-5 overflow-y-auto p-4 sm:p-6"
+
             aria-live="polite"
           >
             {messages.map((m) =>
