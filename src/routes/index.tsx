@@ -16,6 +16,8 @@ import {
   Wand2,
   ShieldCheck,
   Flame,
+  Zap,
+  MessagesSquare,
 } from "lucide-react";
 
 export const Route = createFileRoute("/")({
@@ -51,6 +53,13 @@ const CASE_STATS = [
   { label: "Şüphe", Icon: Eye, color: "var(--stress)" },
   { label: "Flört", Icon: Heart, color: "var(--happiness)" },
   { label: "Anlayış", Icon: Handshake, color: "var(--career)" },
+];
+
+const COMPANION_STATS = [
+  { label: "Bağ", Icon: Heart, color: "var(--happiness)" },
+  { label: "Güven", Icon: Handshake, color: "var(--career)" },
+  { label: "Güç", Icon: Zap, color: "var(--wealth)" },
+  { label: "Tehlike", Icon: Flame, color: "var(--stress)" },
 ];
 
 const STEPS = [
@@ -165,6 +174,49 @@ function Home() {
             </div>
             <span className="mt-5 flex items-center gap-1 text-sm font-semibold text-primary">
               Sorguya gir
+              <ChevronRight
+                className="size-4 transition-transform group-hover:translate-x-1"
+                aria-hidden
+              />
+            </span>
+          </Link>
+
+          <Link
+            to="/karakter"
+            className="panel group relative overflow-hidden p-6 transition-transform hover:-translate-y-1 md:col-span-2"
+          >
+            <div className="flex items-center gap-3">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/20 text-primary">
+                <MessagesSquare className="size-5" aria-hidden />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Karakter Modu</h2>
+                <p className="text-xs text-muted-foreground">
+                  Bir karakterle sohbet et, birlikte maceraya çık
+                </p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              Fantastik, bilim kurgu, dram ya da gizem seç; kendi yol arkadaşını yarat ve onunla
+              serbestçe konuş. Doğaüstü güçler edin, savaşlara gir, sırları çöz — her cümlen bağ,
+              güven, güç ve tehlikeyi değiştirir.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {COMPANION_STATS.map(({ label, Icon, color }) => (
+                <span
+                  key={label}
+                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                  style={{
+                    color,
+                    background: `color-mix(in oklab, ${color} 16%, transparent)`,
+                  }}
+                >
+                  <Icon className="size-3" aria-hidden /> {label}
+                </span>
+              ))}
+            </div>
+            <span className="mt-5 flex items-center gap-1 text-sm font-semibold text-primary">
+              Karakterini yarat
               <ChevronRight
                 className="size-4 transition-transform group-hover:translate-x-1"
                 aria-hidden
