@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as LifestoryRouteImport } from './routes/lifestory'
+import { Route as KarakterRouteImport } from './routes/karakter'
 import { Route as DedektifRouteImport } from './routes/dedektif'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const LifestoryRoute = LifestoryRouteImport.update({
   id: '/lifestory',
   path: '/lifestory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KarakterRoute = KarakterRouteImport.update({
+  id: '/karakter',
+  path: '/karakter',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DedektifRoute = DedektifRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dedektif': typeof DedektifRoute
+  '/karakter': typeof KarakterRoute
   '/lifestory': typeof LifestoryRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dedektif': typeof DedektifRoute
+  '/karakter': typeof KarakterRoute
   '/lifestory': typeof LifestoryRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
@@ -51,20 +59,28 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dedektif': typeof DedektifRoute
+  '/karakter': typeof KarakterRoute
   '/lifestory': typeof LifestoryRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dedektif' | '/lifestory' | '/sitemap.xml'
+  fullPaths: '/' | '/dedektif' | '/karakter' | '/lifestory' | '/sitemap.xml'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dedektif' | '/lifestory' | '/sitemap.xml'
-  id: '__root__' | '/' | '/dedektif' | '/lifestory' | '/sitemap.xml'
+  to: '/' | '/dedektif' | '/karakter' | '/lifestory' | '/sitemap.xml'
+  id:
+    | '__root__'
+    | '/'
+    | '/dedektif'
+    | '/karakter'
+    | '/lifestory'
+    | '/sitemap.xml'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DedektifRoute: typeof DedektifRoute
+  KarakterRoute: typeof KarakterRoute
   LifestoryRoute: typeof LifestoryRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
 }
@@ -83,6 +99,13 @@ declare module '@tanstack/react-router' {
       path: '/lifestory'
       fullPath: '/lifestory'
       preLoaderRoute: typeof LifestoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/karakter': {
+      id: '/karakter'
+      path: '/karakter'
+      fullPath: '/karakter'
+      preLoaderRoute: typeof KarakterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dedektif': {
@@ -105,19 +128,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DedektifRoute: DedektifRoute,
+  KarakterRoute: KarakterRoute,
   LifestoryRoute: LifestoryRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
