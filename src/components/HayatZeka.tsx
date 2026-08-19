@@ -10,7 +10,7 @@
 
    Öncelik: oyuncunun anahtarı > sunucudaki anahtar > yerel motor. */
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Loader2, Settings2, Sparkles, X } from "lucide-react";
 
 import HayatOyunu, {
@@ -34,13 +34,22 @@ import {
 } from "@/lib/hayat/zeka";
 import {
   SAGLAYICILAR,
-  ayarKaydet,
   ayarUcu,
-  ayarYukle,
   hataMesaji,
+  secimKaydet,
+  secimYukle,
   tarayiciSorucu,
   type ZekaAyar,
+  type ZekaSecim,
 } from "@/lib/hayat/zeka-tarayici";
+import {
+  CIHAZ_MODELLERI,
+  cihazDestekliMi,
+  cihazOnIsit,
+  cihazSorucu,
+  type YuklemeDurumu,
+} from "@/lib/hayat/zeka-cihaz";
+import type { Sorucu } from "@/lib/hayat/zeka";
 import type { Durum } from "@/lib/hayat/tipler";
 
 const C = {
@@ -74,12 +83,20 @@ type Props = {
 const ZORUNLU_ORANI = 0.16;
 
 export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
-  const [ayar, setAyar] = useState<ZekaAyar | null>(() =>
-    typeof window === "undefined" ? null : ayarYukle(),
+  const [secim, setSecim] = useState<ZekaSecim | null>(() =>
+    typeof window === "undefined" ? null : secimYukle(),
   );
   const [panelAcik, setPanelAcik] = useState(false);
   const [sonHata, setSonHata] = useState<string | null>(null);
+  const [yukleme, setYukleme] = useState<YuklemeDurumu | null>(null);
   const hataZamani = useRef(0);
+
+  /* Cihaz modeli seçiliyse açılışta ısıt: önbellekteyse saniyeler içinde hazır. */
+  useEffect(() => {
+    if (secim?.tur === "cihaz" && cihazDestekliMi()) {
+      cihazOnIsit(secim.model, (d) => setYukleme(d.oran >= 100 ? null : d));
+    }
+  }, [secim]);
 
   const hataBildir = (e: unknown) => {
     setSonHata(hataMesaji(e));
@@ -89,8 +106,12 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
   /* Oyuncu anahtarıyla çalışan sağlayıcılar. Model düşerse hatayı durum
      çubuğuna yazar ve yerel motora döner — oyun asla durmaz. */
   const oyuncuSaglayicilari = useMemo(() => {
-    if (!ayar) return null;
-    const sorucu = tarayiciSorucu(ayar);
+    if (!secim) return null;
+    if (secim.tur === "cihaz" && !cihazDestekliMi()) return null;
+    const sorucu: Sorucu =
+      secim.tur === "cihaz"
+        ? cihazSorucu(secim.model, (d) => setYukleme(d.oran >= 100 ? null : d))
+        : tarayiciSorucu(secim.ayar);
 
     const sahne: SahneSaglayici = async ({ durum, sonKaliplar, kacinilanBasliklar }) => {
       try {
@@ -170,11 +191,15 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
     };
 
     return { sahne, oneri, alanOneri, isimOneri, profil, serbestCevap };
-  }, [ayar]);
+  }, [secim]);
 
   const aktif = oyuncuSaglayicilari ?? (sunucuZekaVar ? sunucu : undefined);
   const durumYazisi = oyuncuSaglayicilari
-    ? `yapay zekâ açık · ${ayarUcu(ayar!).model}`
+    ? secim!.tur === "cihaz"
+      ? yukleme
+        ? `bizim model · ${yukleme.metin} %${yukleme.oran}`
+        : "yapay zekâ açık · bizim model"
+      : `yapay zekâ açık · ${ayarUcu((secim as { tur: "anahtar"; ayar: ZekaAyar }).ayar).model}`
     : sunucuZekaVar
       ? "yapay zekâ açık · sunucu"
       : "yapay zekâ kapalı";
@@ -242,12 +267,13 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
 
       {panelAcik && (
         <AyarPaneli
-          ayar={ayar}
+          secim={secim}
           onKapat={() => setPanelAcik(false)}
-          onKaydet={(a) => {
-            ayarKaydet(a);
-            setAyar(a);
+          onKaydet={(y) => {
+            secimKaydet(y);
+            setSecim(y);
             setSonHata(null);
+            setYukleme(null);
             setPanelAcik(false);
           }}
         />
@@ -259,14 +285,19 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
 /* ---------- Ayarlar paneli ---------- */
 
 function AyarPaneli({
-  ayar,
+  secim,
   onKapat,
   onKaydet,
 }: {
-  ayar: ZekaAyar | null;
+  secim: ZekaSecim | null;
   onKapat: () => void;
-  onKaydet: (a: ZekaAyar | null) => void;
+  onKaydet: (y: ZekaSecim | null) => void;
 }) {
+  const ayar = secim?.tur === "anahtar" ? secim.ayar : null;
+  const cihazVar = cihazDestekliMi();
+  const [cihazModel, setCihazModel] = useState(
+    secim?.tur === "cihaz" ? secim.model : CIHAZ_MODELLERI[1].id,
+  );
   const [saglayici, setSaglayici] = useState<ZekaAyar["saglayici"]>(ayar?.saglayici ?? "gemini");
   const [anahtar, setAnahtar] = useState(ayar?.anahtar ?? "");
   const [model, setModel] = useState(ayar?.model ?? "");
@@ -364,10 +395,95 @@ function AyarPaneli({
             <X size={18} />
           </button>
         </div>
+        {/* ---- Bizim model: cihazda çalışır, limitsiz ---- */}
+        <div
+          style={{
+            border: `1px solid ${C.altin}55`,
+            background: "rgba(245, 185, 66, 0.06)",
+            borderRadius: 14,
+            padding: "13px 14px",
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 13.5, fontWeight: 700, marginBottom: 3 }}>
+            Bizim yapay zekâ — cihazında çalışır
+          </div>
+          <p style={{ fontSize: 12, color: C.solgun, lineHeight: 1.5, margin: "0 0 10px" }}>
+            Anahtar yok, kota yok, kimseye bağlı değil. Açık kaynak model bir kez iner, tarayıcı
+            önbelleğine yerleşir ve senin cihazında düşünür. Küçük olduğu için yazımı bulut
+            modelleri kadar parlak değildir ama tamamen bizimdir.
+          </p>
+          {!cihazVar ? (
+            <div style={{ fontSize: 12.5, color: C.kirmizi, lineHeight: 1.45 }}>
+              Bu tarayıcı WebGPU desteklemiyor. Güncel Chrome ya da Edge ile açmayı dene; şimdilik
+              aşağıdan anahtarla da çalışabilirsin.
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "grid", gap: 7, marginBottom: 10 }}>
+                {CIHAZ_MODELLERI.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => setCihazModel(m.id)}
+                    style={{
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      border: `1px solid ${cihazModel === m.id ? C.altin : C.kenar}`,
+                      background: cihazModel === m.id ? "rgba(245,185,66,0.1)" : "rgba(0,0,0,0.22)",
+                      color: C.krem,
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>
+                      {m.ad}{" "}
+                      <span style={{ color: C.solgun, fontWeight: 400 }}>· ~{m.indirmeMB} MB</span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: C.solgun, marginTop: 2, lineHeight: 1.4 }}>
+                      {m.aciklama}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => onKaydet({ tur: "cihaz", model: cihazModel })}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  border: `1px solid ${C.altin}`,
+                  background: C.altin,
+                  color: "#2b1d00",
+                  fontSize: 13.5,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                {secim?.tur === "cihaz" && secim.model === cihazModel
+                  ? "Kullanılıyor ✓"
+                  : "Bu modeli kullan"}
+              </button>
+              <div style={{ fontSize: 11, color: C.solgun, marginTop: 7, lineHeight: 1.4 }}>
+                İndirme oyun içinde, sağ üstteki çubukta yüzdeyle görünür; Wi-Fi önerilir.
+              </div>
+            </>
+          )}
+        </div>
+
+        <div
+          style={{
+            fontSize: 11,
+            letterSpacing: 1.5,
+            textTransform: "uppercase",
+            color: C.solgun,
+            marginBottom: 10,
+          }}
+        >
+          ya da kendi anahtarınla
+        </div>
         <p style={{ fontSize: 12.5, color: C.solgun, lineHeight: 1.5, margin: "0 0 14px" }}>
-          Kendi anahtarını gir; sahneleri, önerileri ve senin yazdığın cevapların sonuçlarını model
-          yazsın. Anahtar yalnızca bu cihazda saklanır ve istekler doğrudan senin tarayıcından
-          gider.
+          Daha kaliteli yazım istersen ücretsiz bir Gemini anahtarı gir. Anahtar yalnızca bu cihazda
+          saklanır ve istekler doğrudan senin tarayıcından gider.
         </p>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
@@ -467,7 +583,7 @@ function AyarPaneli({
             {test.durum === "calisiyor" ? "Deneniyor..." : "Anahtarı dene"}
           </button>
           <button
-            onClick={() => onKaydet(anahtar.trim() ? taslak() : null)}
+            onClick={() => onKaydet(anahtar.trim() ? { tur: "anahtar", ayar: taslak() } : null)}
             style={{
               flex: 1,
               padding: "12px 14px",
@@ -501,7 +617,7 @@ function AyarPaneli({
           <div style={{ fontSize: 12.5, color: C.kirmizi, lineHeight: 1.45 }}>{test.mesaj}</div>
         )}
 
-        {ayar && (
+        {secim && (
           <button
             onClick={() => onKaydet(null)}
             style={{
@@ -515,7 +631,7 @@ function AyarPaneli({
               padding: 0,
             }}
           >
-            Anahtarı bu cihazdan sil
+            Yapay zekâyı kapat (yerel motora dön)
           </button>
         )}
         <style>

@@ -7,15 +7,28 @@ import { mkdirSync, writeFileSync } from "node:fs";
 mkdirSync("dist-web", { recursive: true });
 
 await build({
-  entryPoints: ["web/giris.tsx"],
+  entryPoints: ["web/cihaz-worker.ts"],
   bundle: true,
   minify: true,
-  format: "iife",
+  format: "esm",
+  target: "es2020",
+  define: { "process.env.NODE_ENV": '"production"' },
+  outfile: "dist-web/cihaz-worker.js",
+  logLevel: "info",
+});
+
+await build({
+  entryPoints: { oyun: "web/giris.tsx" },
+  bundle: true,
+  minify: true,
+  format: "esm",
+  splitting: true, // web-llm ayrı parçada kalır; yalnızca cihaz modeli seçilince iner
   jsx: "automatic",
   target: "es2020",
   define: { "process.env.NODE_ENV": '"production"' },
   alias: { "@": "./src" },
-  outfile: "dist-web/oyun.js",
+  outdir: "dist-web",
+  chunkNames: "parca/[name]-[hash]",
   logLevel: "info",
 });
 
@@ -47,7 +60,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <div id="oyun"><div id="yukleniyor"><span>🕯️</span><p>hayat kuruluyor</p></div></div>
-<script src="./oyun.js"></script>
+<script type="module" src="./oyun.js"></script>
 </body>
 </html>
 `;

@@ -136,3 +136,36 @@ export function tarayiciSorucu(ayar: ZekaAyar): Sorucu {
     throw sonHata instanceof Error ? sonHata : new Error("Yapay zekâya ulaşılamadı.");
   };
 }
+
+/* ---------- Kayıtlı seçim ----------
+   Oyuncunun yapay zekâ tercihi: cihazdaki bizim model ya da kendi anahtarı.
+   Eski sürümün kaydettiği düz ZekaAyar nesneleri anahtar seçimine göçürülür. */
+
+export type ZekaSecim = { tur: "cihaz"; model: string } | { tur: "anahtar"; ayar: ZekaAyar };
+
+const SECIM_ANAHTARI = "hayat-zeka-secim";
+
+export function secimYukle(): ZekaSecim | null {
+  try {
+    const yeni = localStorage.getItem(SECIM_ANAHTARI);
+    if (yeni) {
+      const s = JSON.parse(yeni) as ZekaSecim;
+      if (s?.tur === "cihaz" && typeof s.model === "string") return s;
+      if (s?.tur === "anahtar" && s.ayar?.anahtar?.trim()) return s;
+      return null;
+    }
+    const eski = ayarYukle();
+    return eski ? { tur: "anahtar", ayar: eski } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function secimKaydet(secim: ZekaSecim | null) {
+  try {
+    if (secim) localStorage.setItem(SECIM_ANAHTARI, JSON.stringify(secim));
+    else localStorage.removeItem(SECIM_ANAHTARI);
+  } catch {
+    /* saklama kapalı olabilir */
+  }
+}
