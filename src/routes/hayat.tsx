@@ -1,15 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 
-import HayatOyunu, {
-  type AlanOneriSaglayici,
-  type IsimOneriSaglayici,
-  type OneriSaglayici,
-  type ProfilSaglayici,
-  type SahneSaglayici,
-  type SerbestCevapSaglayici,
+import type {
+  AlanOneriSaglayici,
+  IsimOneriSaglayici,
+  OneriSaglayici,
+  ProfilSaglayici,
+  SahneSaglayici,
+  SerbestCevapSaglayici,
 } from "@/components/HayatOyunu";
+import HayatZeka from "@/components/HayatZeka";
 import {
+  aiDurumu,
   alanOner,
   isimOner,
   oneriGetir,
@@ -36,19 +38,28 @@ export const Route = createFileRoute("/hayat")({
       { property: "og:type", content: "website" },
     ],
   }),
+  /* Sunucuda anahtar var mı? Durum çubuğu buna göre "açık/kapalı" yazar. */
+  loader: async () => {
+    try {
+      return await aiDurumu();
+    } catch {
+      return { aktif: false };
+    }
+  },
   component: HayatSayfasi,
 });
 
 function HayatSayfasi() {
-  /* Sahneler ve öneriler sunucudaki yapay zekâdan gelir; anahtar yoksa ya da
-     istek düşerse sunucu aynı yanıtı yerel motordan üretir. */
-  const sahneSaglayici = useCallback<SahneSaglayici>(
+  const { aktif } = Route.useLoaderData();
+
+  /* Sunucu tarafındaki yapay zekâ sağlayıcıları. Oyuncu kendi anahtarını
+     girerse HayatZeka bunların yerine tarayıcı istemcisini kullanır. */
+  const sahne = useCallback<SahneSaglayici>(
     ({ durum, sonKaliplar, kacinilanBasliklar }) =>
       sahneGetir({ data: { durum, sonKaliplar, kacinilanBasliklar, yapayZeka: true } }),
     [],
   );
-
-  const oneriSaglayici = useCallback<OneriSaglayici>(
+  const oneri = useCallback<OneriSaglayici>(
     ({ durum, olay }) =>
       oneriGetir({
         data: {
@@ -64,25 +75,19 @@ function HayatSayfasi() {
       }),
     [],
   );
-
-  /* Karakter oluştururken: isim/meslek/kişilik önerileri ve serbest metnin
-     oyun profiline çevrilmesi de sunucudaki yapay zekâdan geçer. */
-  const alanOneriSaglayici = useCallback<AlanOneriSaglayici>(
+  const alanOneri = useCallback<AlanOneriSaglayici>(
     ({ tur, ipucu, kacinilan }) => alanOner({ data: { tur, ipucu, kacinilan } }),
     [],
   );
-
-  const isimOneriSaglayici = useCallback<IsimOneriSaglayici>(
+  const isimOneri = useCallback<IsimOneriSaglayici>(
     ({ cinsiyet, kacinilan }) => isimOner({ data: { cinsiyet, kacinilan } }),
     [],
   );
-
-  const profilSaglayici = useCallback<ProfilSaglayici>(
+  const profil = useCallback<ProfilSaglayici>(
     ({ ad, tur }) => profilCoz({ data: { ad, tur } }),
     [],
   );
-
-  const serbestCevapSaglayici = useCallback<SerbestCevapSaglayici>(
+  const serbest = useCallback<SerbestCevapSaglayici>(
     ({ durum, olay, metin }) =>
       serbestCevap({
         data: {
@@ -100,14 +105,10 @@ function HayatSayfasi() {
     [],
   );
 
-  return (
-    <HayatOyunu
-      sahneSaglayici={sahneSaglayici}
-      oneriSaglayici={oneriSaglayici}
-      alanOneriSaglayici={alanOneriSaglayici}
-      isimOneriSaglayici={isimOneriSaglayici}
-      profilSaglayici={profilSaglayici}
-      serbestCevapSaglayici={serbestCevapSaglayici}
-    />
+  const sunucu = useMemo(
+    () => ({ sahne, oneri, alanOneri, isimOneri, profil, serbestCevap: serbest }),
+    [sahne, oneri, alanOneri, isimOneri, profil, serbest],
   );
+
+  return <HayatZeka sunucu={sunucu} sunucuZekaVar={aktif} />;
 }

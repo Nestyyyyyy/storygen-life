@@ -1,0 +1,529 @@
+/* Hayat Simülatörü — yapay zekâ sarmalayıcısı
+
+   HayatOyunu'nu sarar ve iki şeyi çözer:
+
+   1. Görünürlük: yapay zekânın o an açık mı kapalı mı olduğu ekranın
+      üstündeki çubukta her zaman yazar. Sessiz yerel moda düşüş yok.
+   2. Oyuncunun kendi anahtarı: ayarlar panelinden ücretsiz bir Gemini
+      anahtarı girilirse sahneleri, önerileri ve serbest cevapları model
+      yazar — istekler doğrudan oyuncunun tarayıcısından gider.
+
+   Öncelik: oyuncunun anahtarı > sunucudaki anahtar > yerel motor. */
+
+import { useMemo, useRef, useState } from "react";
+import { Check, Loader2, Settings2, Sparkles, X } from "lucide-react";
+
+import HayatOyunu, {
+  type AlanOneriSaglayici,
+  type IsimOneriSaglayici,
+  type OneriSaglayici,
+  type ProfilSaglayici,
+  type SahneSaglayici,
+  type SerbestCevapSaglayici,
+} from "@/components/HayatOyunu";
+import { olaySec, oneriHesapla, serbestSecenek } from "@/lib/hayat/motor";
+import { yerelOneri, yerelOzellik } from "@/lib/hayat/profil";
+import { ISIMLER } from "@/lib/hayat/veri";
+import {
+  zAlanOner,
+  zIsimOner,
+  zOneri,
+  zProfilCoz,
+  zSahneUret,
+  zSerbestCevap,
+} from "@/lib/hayat/zeka";
+import {
+  SAGLAYICILAR,
+  ayarKaydet,
+  ayarUcu,
+  ayarYukle,
+  hataMesaji,
+  tarayiciSorucu,
+  type ZekaAyar,
+} from "@/lib/hayat/zeka-tarayici";
+import type { Durum } from "@/lib/hayat/tipler";
+
+const C = {
+  bg: "#17122a",
+  kart: "#2b2146",
+  kenar: "#3a2e5c",
+  krem: "#ece7f5",
+  solgun: "#9a8fb5",
+  altin: "#f5b942",
+  gok: "#7da8ff",
+  kirmizi: "#ff9090",
+};
+const sans = "system-ui, -apple-system, sans-serif";
+
+/** Sunucudaki yapay zekâ sağlayıcıları (varsa). */
+type SunucuSaglayicilar = {
+  sahne?: SahneSaglayici;
+  oneri?: OneriSaglayici;
+  alanOneri?: AlanOneriSaglayici;
+  isimOneri?: IsimOneriSaglayici;
+  profil?: ProfilSaglayici;
+  serbestCevap?: SerbestCevapSaglayici;
+};
+
+type Props = {
+  sunucu?: SunucuSaglayicilar;
+  /** Sunucuda anahtar tanımlı mı? Durum çubuğu buna göre yazar. */
+  sunucuZekaVar?: boolean;
+};
+
+const ZORUNLU_ORANI = 0.16;
+
+export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
+  const [ayar, setAyar] = useState<ZekaAyar | null>(() =>
+    typeof window === "undefined" ? null : ayarYukle(),
+  );
+  const [panelAcik, setPanelAcik] = useState(false);
+  const [sonHata, setSonHata] = useState<string | null>(null);
+  const hataZamani = useRef(0);
+
+  const hataBildir = (e: unknown) => {
+    setSonHata(hataMesaji(e));
+    hataZamani.current = Date.now();
+  };
+
+  /* Oyuncu anahtarıyla çalışan sağlayıcılar. Model düşerse hatayı durum
+     çubuğuna yazar ve yerel motora döner — oyun asla durmaz. */
+  const oyuncuSaglayicilari = useMemo(() => {
+    if (!ayar) return null;
+    const sorucu = tarayiciSorucu(ayar);
+
+    const sahne: SahneSaglayici = async ({ durum, sonKaliplar, kacinilanBasliklar }) => {
+      try {
+        const zorunlu = Math.random() < ZORUNLU_ORANI;
+        const olay = await zSahneUret(sorucu, durum, kacinilanBasliklar, { zorunlu });
+        if (olay) {
+          setSonHata(null);
+          return { olay, motor: "ai" as const };
+        }
+      } catch (e) {
+        hataBildir(e);
+      }
+      return { olay: olaySec(durum, sonKaliplar), motor: "yerel" as const };
+    };
+
+    const oneri: OneriSaglayici = async ({ durum, olay }) => {
+      const yerel = oneriHesapla(olay, durum);
+      try {
+        const ai = await zOneri(sorucu, olay, durum);
+        if (ai)
+          return {
+            indeks: ai.indeks,
+            gerekce: ai.gerekce,
+            puanlar: yerel.puanlar,
+            kaynak: "ai" as const,
+          };
+      } catch (e) {
+        hataBildir(e);
+      }
+      return yerel;
+    };
+
+    const alanOneri: AlanOneriSaglayici = async ({ tur, ipucu, kacinilan }) => {
+      try {
+        const deger = await zAlanOner(sorucu, tur, ipucu, kacinilan);
+        if (deger) return { deger, kaynak: "ai" as const };
+      } catch (e) {
+        hataBildir(e);
+      }
+      return { deger: yerelOneri(tur, ipucu, kacinilan), kaynak: "yerel" as const };
+    };
+
+    const isimOneri: IsimOneriSaglayici = async ({ cinsiyet, kacinilan }) => {
+      try {
+        const deger = await zIsimOner(sorucu, cinsiyet, kacinilan);
+        if (deger) return { deger, kaynak: "ai" as const };
+      } catch (e) {
+        hataBildir(e);
+      }
+      const havuz =
+        cinsiyet === "kadin"
+          ? ISIMLER.kadin
+          : cinsiyet === "erkek"
+            ? ISIMLER.erkek
+            : [...ISIMLER.kadin, ...ISIMLER.erkek];
+      return { deger: havuz[Math.floor(Math.random() * havuz.length)], kaynak: "yerel" as const };
+    };
+
+    const profil: ProfilSaglayici = async ({ ad, tur }) => {
+      try {
+        const p = await zProfilCoz(sorucu, ad, tur);
+        if (p) return p;
+      } catch (e) {
+        hataBildir(e);
+      }
+      return yerelOzellik(ad, tur);
+    };
+
+    const serbestCevap: SerbestCevapSaglayici = async ({ durum, olay, metin }) => {
+      try {
+        const secenek = await zSerbestCevap(sorucu, metin, olay, durum);
+        if (secenek) return { secenek, motor: "ai" as const };
+      } catch (e) {
+        hataBildir(e);
+      }
+      return { secenek: serbestSecenek(metin, durum as Durum), motor: "yerel" as const };
+    };
+
+    return { sahne, oneri, alanOneri, isimOneri, profil, serbestCevap };
+  }, [ayar]);
+
+  const aktif = oyuncuSaglayicilari ?? (sunucuZekaVar ? sunucu : undefined);
+  const durumYazisi = oyuncuSaglayicilari
+    ? `yapay zekâ açık · ${ayarUcu(ayar!).model}`
+    : sunucuZekaVar
+      ? "yapay zekâ açık · sunucu"
+      : "yapay zekâ kapalı";
+
+  return (
+    <div style={{ position: "relative" }}>
+      {/* Durum çubuğu */}
+      <button
+        onClick={() => setPanelAcik(true)}
+        aria-label="Yapay zekâ ayarları"
+        style={{
+          position: "fixed",
+          top: 10,
+          right: 10,
+          zIndex: 40,
+          display: "flex",
+          alignItems: "center",
+          gap: 7,
+          padding: "8px 13px",
+          borderRadius: 999,
+          border: `1px solid ${aktif ? C.altin : C.kenar}`,
+          background: "rgba(23, 18, 42, 0.92)",
+          color: aktif ? C.altin : C.solgun,
+          fontFamily: sans,
+          fontSize: 12,
+          fontWeight: 600,
+          cursor: "pointer",
+        }}
+      >
+        {aktif ? <Sparkles size={13} /> : <Settings2 size={13} />}
+        {durumYazisi}
+      </button>
+
+      {sonHata && Date.now() - hataZamani.current < 15000 && (
+        <div
+          role="alert"
+          style={{
+            position: "fixed",
+            top: 52,
+            right: 10,
+            zIndex: 40,
+            maxWidth: 300,
+            padding: "9px 12px",
+            borderRadius: 12,
+            border: `1px solid ${C.kirmizi}55`,
+            background: "rgba(23, 18, 42, 0.95)",
+            color: C.kirmizi,
+            fontFamily: sans,
+            fontSize: 12,
+            lineHeight: 1.4,
+          }}
+        >
+          {sonHata} Bu sahne yerel motordan geldi.
+        </div>
+      )}
+
+      <HayatOyunu
+        sahneSaglayici={aktif?.sahne}
+        oneriSaglayici={aktif?.oneri}
+        alanOneriSaglayici={aktif?.alanOneri}
+        isimOneriSaglayici={aktif?.isimOneri}
+        profilSaglayici={aktif?.profil}
+        serbestCevapSaglayici={aktif?.serbestCevap}
+      />
+
+      {panelAcik && (
+        <AyarPaneli
+          ayar={ayar}
+          onKapat={() => setPanelAcik(false)}
+          onKaydet={(a) => {
+            ayarKaydet(a);
+            setAyar(a);
+            setSonHata(null);
+            setPanelAcik(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------- Ayarlar paneli ---------- */
+
+function AyarPaneli({
+  ayar,
+  onKapat,
+  onKaydet,
+}: {
+  ayar: ZekaAyar | null;
+  onKapat: () => void;
+  onKaydet: (a: ZekaAyar | null) => void;
+}) {
+  const [saglayici, setSaglayici] = useState<ZekaAyar["saglayici"]>(ayar?.saglayici ?? "gemini");
+  const [anahtar, setAnahtar] = useState(ayar?.anahtar ?? "");
+  const [model, setModel] = useState(ayar?.model ?? "");
+  const [url, setUrl] = useState(ayar?.url ?? "");
+  const [test, setTest] = useState<{
+    durum: "bos" | "calisiyor" | "tamam" | "hata";
+    mesaj?: string;
+  }>({
+    durum: "bos",
+  });
+
+  const taslak = (): ZekaAyar => ({
+    saglayici,
+    anahtar: anahtar.trim(),
+    model: model.trim() || (saglayici !== "ozel" ? SAGLAYICILAR[saglayici].varsayilanModel : ""),
+    ...(saglayici === "ozel" ? { url: url.trim() } : {}),
+  });
+
+  async function testEt() {
+    if (!anahtar.trim() || test.durum === "calisiyor") return;
+    setTest({ durum: "calisiyor" });
+    try {
+      const sorucu = tarayiciSorucu(taslak());
+      await sorucu('Sadece şu JSON\'u döndür: {"tamam": true}', "ping", 0, ["tamam"]);
+      setTest({ durum: "tamam" });
+    } catch (e) {
+      setTest({ durum: "hata", mesaj: hataMesaji(e) });
+    }
+  }
+
+  const girdiStil: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "11px 13px",
+    borderRadius: 12,
+    background: "rgba(0,0,0,0.28)",
+    border: `1px solid ${C.kenar}`,
+    color: C.krem,
+    fontFamily: sans,
+    fontSize: 14,
+    outline: "none",
+  };
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Yapay zekâ ayarları"
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 50,
+        background: "rgba(10, 7, 20, 0.72)",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "center",
+        fontFamily: sans,
+      }}
+      onClick={onKapat}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%",
+          maxWidth: 440,
+          maxHeight: "88vh",
+          overflowY: "auto",
+          background: C.kart,
+          border: `1px solid ${C.kenar}`,
+          borderRadius: "22px 22px 0 0",
+          padding: "20px 18px 26px",
+          color: C.krem,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 6,
+          }}
+        >
+          <div style={{ fontSize: 16, fontWeight: 700 }}>Yapay zekâ ayarları</div>
+          <button
+            onClick={onKapat}
+            aria-label="Kapat"
+            style={{
+              background: "none",
+              border: "none",
+              color: C.solgun,
+              cursor: "pointer",
+              padding: 4,
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <p style={{ fontSize: 12.5, color: C.solgun, lineHeight: 1.5, margin: "0 0 14px" }}>
+          Kendi anahtarını gir; sahneleri, önerileri ve senin yazdığın cevapların sonuçlarını model
+          yazsın. Anahtar yalnızca bu cihazda saklanır ve istekler doğrudan senin tarayıcından
+          gider.
+        </p>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
+          {(["gemini", "openrouter", "openai", "ozel"] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => {
+                setSaglayici(s);
+                setTest({ durum: "bos" });
+              }}
+              style={{
+                padding: "8px 13px",
+                borderRadius: 999,
+                border: `1px solid ${saglayici === s ? C.altin : C.kenar}`,
+                background: saglayici === s ? C.altin : "rgba(0,0,0,0.22)",
+                color: saglayici === s ? "#2b1d00" : C.krem,
+                fontSize: 12.5,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              {s === "ozel" ? "Özel uç" : SAGLAYICILAR[s].ad}
+            </button>
+          ))}
+        </div>
+
+        {saglayici !== "ozel" && (
+          <div style={{ fontSize: 12, color: C.gok, marginBottom: 10 }}>
+            Anahtar: {SAGLAYICILAR[saglayici].anahtarIpucu}
+          </div>
+        )}
+
+        <label style={{ fontSize: 12, color: C.solgun, display: "block", marginBottom: 5 }}>
+          API anahtarı
+        </label>
+        <input
+          value={anahtar}
+          onChange={(e) => {
+            setAnahtar(e.target.value);
+            setTest({ durum: "bos" });
+          }}
+          placeholder={saglayici === "gemini" ? "AIzaSy..." : "sk-..."}
+          type="password"
+          autoComplete="off"
+          style={{ ...girdiStil, marginBottom: 12 }}
+        />
+
+        <label style={{ fontSize: 12, color: C.solgun, display: "block", marginBottom: 5 }}>
+          Model {saglayici !== "ozel" ? `(boşsa ${SAGLAYICILAR[saglayici].varsayilanModel})` : ""}
+        </label>
+        <input
+          value={model}
+          onChange={(e) => setModel(e.target.value)}
+          placeholder={saglayici !== "ozel" ? SAGLAYICILAR[saglayici].varsayilanModel : "model adı"}
+          style={{ ...girdiStil, marginBottom: 12 }}
+        />
+
+        {saglayici === "ozel" && (
+          <>
+            <label style={{ fontSize: 12, color: C.solgun, display: "block", marginBottom: 5 }}>
+              /chat/completions ucu (OpenAI uyumlu, CORS açık olmalı)
+            </label>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://.../v1/chat/completions"
+              style={{ ...girdiStil, marginBottom: 12 }}
+            />
+          </>
+        )}
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <button
+            onClick={() => void testEt()}
+            disabled={!anahtar.trim() || test.durum === "calisiyor"}
+            style={{
+              flex: 1,
+              padding: "12px 14px",
+              borderRadius: 12,
+              border: `1px dashed ${C.kenar}`,
+              background: "transparent",
+              color: C.altin,
+              fontSize: 13.5,
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 7,
+            }}
+          >
+            {test.durum === "calisiyor" ? (
+              <Loader2 size={15} className="hs-donen" />
+            ) : (
+              <Sparkles size={15} />
+            )}
+            {test.durum === "calisiyor" ? "Deneniyor..." : "Anahtarı dene"}
+          </button>
+          <button
+            onClick={() => onKaydet(anahtar.trim() ? taslak() : null)}
+            style={{
+              flex: 1,
+              padding: "12px 14px",
+              borderRadius: 12,
+              border: `1px solid ${C.altin}`,
+              background: C.altin,
+              color: "#2b1d00",
+              fontSize: 13.5,
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            Kaydet
+          </button>
+        </div>
+
+        {test.durum === "tamam" && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontSize: 12.5,
+              color: "#6ee7a0",
+            }}
+          >
+            <Check size={14} /> Anahtar çalışıyor; kaydedince sahneleri model yazacak.
+          </div>
+        )}
+        {test.durum === "hata" && (
+          <div style={{ fontSize: 12.5, color: C.kirmizi, lineHeight: 1.45 }}>{test.mesaj}</div>
+        )}
+
+        {ayar && (
+          <button
+            onClick={() => onKaydet(null)}
+            style={{
+              marginTop: 12,
+              background: "none",
+              border: "none",
+              color: C.solgun,
+              fontSize: 12.5,
+              cursor: "pointer",
+              textDecoration: "underline",
+              padding: 0,
+            }}
+          >
+            Anahtarı bu cihazdan sil
+          </button>
+        )}
+        <style>
+          {
+            "@keyframes hs-don{to{transform:rotate(360deg)}} .hs-donen{animation:hs-don 1s linear infinite}"
+          }
+        </style>
+      </div>
+    </div>
+  );
+}

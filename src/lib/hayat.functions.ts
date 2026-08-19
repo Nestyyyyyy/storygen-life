@@ -212,3 +212,11 @@ export const serbestCevap = createServerFn({ method: "POST" })
     }
     return { secenek: serbestSecenek(data.metin, durum), motor: "yerel" };
   });
+
+/** Sunucuda bir yapay zekâ anahtarı tanımlı mı? Durum çubuğu buna göre yazar. */
+export const aiDurumu = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ aktif: boolean }> => {
+    const { aiConfigs } = await import("./life.server");
+    return { aktif: aiConfigs().length > 0 };
+  },
+);
