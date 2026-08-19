@@ -330,7 +330,7 @@ function AyarPaneli({
   const ayar = secim?.tur === "anahtar" ? secim.ayar : null;
   const cihazVar = cihazDestekliMi();
   const [cihazModel, setCihazModel] = useState(
-    secim?.tur === "cihaz" ? secim.model : CIHAZ_MODELLERI[1].id,
+    secim?.tur === "cihaz" ? secim.model : CIHAZ_MODELLERI[0].id,
   );
   const [saglayici, setSaglayici] = useState<ZekaAyar["saglayici"]>(ayar?.saglayici ?? "gemini");
   const [anahtar, setAnahtar] = useState(ayar?.anahtar ?? "");

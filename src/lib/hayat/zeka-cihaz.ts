@@ -23,14 +23,14 @@ export type CihazModeli = {
 export const CIHAZ_MODELLERI: CihazModeli[] = [
   {
     id: "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
-    ad: "Hızlı",
-    aciklama: "Küçük iniş (~350 MB), zayıf cihazlarda da çalışır; yazımı daha basit.",
+    ad: "Hızlı — telefon için",
+    aciklama: "Küçük iniş (~350 MB), her cihazda akıcı; yazımı daha basit.",
     indirmeMB: 350,
   },
   {
     id: "Qwen2.5-1.5B-Instruct-q4f16_1-MLC",
-    ad: "Önerilen",
-    aciklama: "Daha iyi Türkçe ve daha tutarlı sahneler (~950 MB, bir kez iner).",
+    ad: "Güçlü — bilgisayar için",
+    aciklama: "Daha iyi Türkçe, daha tutarlı sahneler (~950 MB); telefonda yavaş kalabilir.",
     indirmeMB: 950,
   },
 ];
@@ -48,7 +48,7 @@ export type CihazDurum = {
 };
 
 export const CIHAZ_HAZIRLANIYOR = "CIHAZ_HAZIRLANIYOR";
-const URETIM_ZAMAN_ASIMI_MS = 120_000;
+
 const INDIRILDI_ONEKI = "hayat-cihaz-indirildi:";
 
 /**
@@ -161,11 +161,16 @@ export function cihazOnIsit(modelId: string, onDurum: (d: CihazDurum) => void) {
   });
 }
 
-function zamanAsimi<T>(soz: Promise<T>, ms: number): Promise<T> {
+function zamanAsimi<T>(soz: Promise<T>, ms: number, kes: () => void): Promise<T> {
   return Promise.race([
     soz,
     new Promise<never>((_, red) =>
-      setTimeout(() => red(new Error("Model yanıt vermedi (zaman aşımı).")), ms),
+      setTimeout(() => {
+        // Takılan üretim motoru da kilitler: kesmezsek sonraki her soru
+        // kuyrukta bekler ve hepsi zaman aşımına düşer.
+        kes();
+        red(new Error("Model yanıt vermedi (zaman aşımı)."));
+      }, ms),
     ),
   ]);
 }
@@ -176,7 +181,7 @@ function zamanAsimi<T>(soz: Promise<T>, ms: number): Promise<T> {
  * fırlatır — oyun o sahneyi yerel motordan alır, indirme kartta ilerler.
  */
 export function cihazSorucu(modelId: string, onDurum: (d: CihazDurum) => void): Sorucu {
-  return async (system, user, temperature, gerekli) => {
+  return async (system, user, temperature, gerekli, enCokJeton) => {
     let ham: string;
     if (typeof window !== "undefined" && window.__cihazTaklit) {
       ham = await window.__cihazTaklit(system, user);
@@ -186,6 +191,9 @@ export function cihazSorucu(modelId: string, onDurum: (d: CihazDurum) => void): 
         throw new Error(CIHAZ_HAZIRLANIYOR);
       }
       const motor = await cihazBaslat(modelId, onDurum);
+      const butce = enCokJeton ?? 700;
+      // Kısa cevaplı sorular (isim, öneri) uzun süre "Düşünüyor" diyemez.
+      const sinir = butce <= 200 ? 45_000 : 100_000;
       const yanit = await zamanAsimi(
         motor.chat.completions.create({
           messages: [
@@ -193,10 +201,17 @@ export function cihazSorucu(modelId: string, onDurum: (d: CihazDurum) => void): 
             { role: "user", content: user },
           ],
           temperature: Math.min(1, temperature),
-          max_tokens: 768,
+          max_tokens: butce,
           response_format: { type: "json_object" },
         }),
-        URETIM_ZAMAN_ASIMI_MS,
+        sinir,
+        () => {
+          try {
+            void motor.interruptGenerate();
+          } catch {
+            /* motor zaten ölmüş olabilir */
+          }
+        },
       );
       ham = yanit.choices[0]?.message?.content ?? "";
     }

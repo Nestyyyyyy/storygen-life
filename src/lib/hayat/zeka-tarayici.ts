@@ -90,7 +90,7 @@ export function hataMesaji(e: unknown): string {
  */
 export function tarayiciSorucu(ayar: ZekaAyar): Sorucu {
   const { url, model } = ayarUcu(ayar);
-  return async (system, user, temperature, gerekli) => {
+  return async (system, user, temperature, gerekli, enCokJeton) => {
     let sonHata: unknown;
     for (let deneme = 0; deneme < 2; deneme++) {
       try {
@@ -103,6 +103,7 @@ export function tarayiciSorucu(ayar: ZekaAyar): Sorucu {
           body: JSON.stringify({
             model,
             temperature,
+            ...(enCokJeton ? { max_tokens: enCokJeton } : {}),
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: system },

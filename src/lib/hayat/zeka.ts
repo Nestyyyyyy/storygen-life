@@ -24,6 +24,9 @@ export type Sorucu = (
   user: string,
   temperature: number,
   gerekli: string[],
+  /** Bu soru için yeterli üretim bütçesi (token). Cihaz modelinde hız,
+   *  kısa cevaplı sorulara kısa bütçe vermekle geliyor. */
+  enCokJeton?: number,
 ) => Promise<Record<string, unknown>>;
 
 const GECERLI_ETIKETLER: Etiket[] = [
@@ -248,7 +251,7 @@ Rastgelelik tohumu: ${Math.random().toString(36).slice(2, 10)}
 Bu karakter için ${durum.yas} yaşına uygun tek bir sahne yaz.`;
 
   try {
-    const ham = await sorucu(SAHNE_SISTEM, user, 1.1, ["metin", "secenekler"]);
+    const ham = await sorucu(SAHNE_SISTEM, user, 1.1, ["metin", "secenekler"], 700);
     return sahneyiTemizle(ham, durum, !!secenekler.zorunlu);
   } catch (err) {
     console.error("[zSahneUret]", err);
@@ -292,7 +295,7 @@ ${liste}
 Oyuncunun hedefi: ${hedef?.ad ?? durum.karakter.hedef}. Hangisini önerirsin?`;
 
   try {
-    const ham = await sorucu(ONERI_SISTEM, user, 0.4, ["indeks", "gerekce"]);
+    const ham = await sorucu(ONERI_SISTEM, user, 0.4, ["indeks", "gerekce"], 160);
     const indeks = sayi(ham.indeks, 0, olay.secenekler.length - 1);
     const gerekce = metniKirp(ham.gerekce, 240);
     if (!gerekce) return null;
@@ -347,7 +350,7 @@ Metin: "${temiz}"
 Bu metni etiketlere çevir.`;
 
   try {
-    const ham = await sorucu(PROFIL_SISTEM, user, 0.5, ["guclu"]);
+    const ham = await sorucu(PROFIL_SISTEM, user, 0.5, ["guclu"], 300);
     const etiket = (v: unknown) =>
       (Array.isArray(v) ? v : [])
         .map((x) => String(x).trim())
@@ -397,6 +400,7 @@ Kaçınılacak: ${kacinilan.slice(0, 15).join(", ") || "yok"}
 Tohum: ${Math.random().toString(36).slice(2, 8)}`,
       1.2,
       ["isim"],
+      40,
     );
     const isim = metniKirp(ham.isim, 14)
       .replace(/[^\p{L}\s'-]/gu, "")
@@ -429,7 +433,7 @@ ${kacinilan.length ? `Şunları tekrar etme: ${kacinilan.slice(0, 15).join(" | "
 Tohum: ${Math.random().toString(36).slice(2, 8)}`;
 
   try {
-    const ham = await sorucu(ONERI_ALAN_SISTEM, user, 1.15, ["value"]);
+    const ham = await sorucu(ONERI_ALAN_SISTEM, user, 1.15, ["value"], 60);
     const deger = metniKirp(ham.value, 40)
       .replace(/\s*\([^)]*\)/g, "")
       .replace(/^["'`]+|["'`]+$/g, "")
@@ -496,7 +500,7 @@ Oyuncunun yazdığı: "${temiz}"
 Bunun sonucunu yaz.`;
 
   try {
-    const ham = await sorucu(SERBEST_SISTEM, user, 0.9, ["sonuc"]);
+    const ham = await sorucu(SERBEST_SISTEM, user, 0.9, ["sonuc"], 380);
     const sonuc = metniKirp(ham.sonuc, 600);
     if (sonuc.length < 25) return null;
 
