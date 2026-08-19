@@ -1,8 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback } from "react";
 
-import HayatOyunu, { type OneriSaglayici, type SahneSaglayici } from "@/components/HayatOyunu";
-import { oneriGetir, sahneGetir } from "@/lib/hayat.functions";
+import HayatOyunu, {
+  type AlanOneriSaglayici,
+  type IsimOneriSaglayici,
+  type OneriSaglayici,
+  type ProfilSaglayici,
+  type SahneSaglayici,
+} from "@/components/HayatOyunu";
+import { alanOner, isimOner, oneriGetir, profilCoz, sahneGetir } from "@/lib/hayat.functions";
 
 export const Route = createFileRoute("/hayat")({
   head: () => ({
@@ -51,5 +57,30 @@ function HayatSayfasi() {
     [],
   );
 
-  return <HayatOyunu sahneSaglayici={sahneSaglayici} oneriSaglayici={oneriSaglayici} />;
+  /* Karakter oluştururken: isim/meslek/kişilik önerileri ve serbest metnin
+     oyun profiline çevrilmesi de sunucudaki yapay zekâdan geçer. */
+  const alanOneriSaglayici = useCallback<AlanOneriSaglayici>(
+    ({ tur, ipucu, kacinilan }) => alanOner({ data: { tur, ipucu, kacinilan } }),
+    [],
+  );
+
+  const isimOneriSaglayici = useCallback<IsimOneriSaglayici>(
+    ({ cinsiyet, kacinilan }) => isimOner({ data: { cinsiyet, kacinilan } }),
+    [],
+  );
+
+  const profilSaglayici = useCallback<ProfilSaglayici>(
+    ({ ad, tur }) => profilCoz({ data: { ad, tur } }),
+    [],
+  );
+
+  return (
+    <HayatOyunu
+      sahneSaglayici={sahneSaglayici}
+      oneriSaglayici={oneriSaglayici}
+      alanOneriSaglayici={alanOneriSaglayici}
+      isimOneriSaglayici={isimOneriSaglayici}
+      profilSaglayici={profilSaglayici}
+    />
+  );
 }

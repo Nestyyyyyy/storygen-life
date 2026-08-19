@@ -11,9 +11,10 @@
    modele açıkça dayatılıyor; dönen JSON ayrıca burada temizleniyor. */
 
 import { askAi } from "./life.server";
-import { EVRE_ADI, HEDEFLER, KISILIKLER, MESLEKLER, evreBul } from "./hayat/veri";
+import { EVRE_ADI, HEDEFLER, evreBul } from "./hayat/veri";
 import { iliskiBul } from "./hayat/motor";
-import type { Durum, Etiket, Etki, Olay, Secenek, StatAnahtar } from "./hayat/tipler";
+import { ETIKET_LISTESI, profilKur } from "./hayat/profil";
+import type { Durum, Etiket, Etki, Olay, Ozellik, Secenek, StatAnahtar } from "./hayat/tipler";
 
 const GECERLI_ETIKETLER: Etiket[] = [
   "cesaret",
@@ -58,10 +59,8 @@ const EVRE_CERCEVESI: Record<string, string> = {
 
 function karakterOzeti(durum: Durum) {
   const k = durum.karakter;
-  const kisilik = k.kisilikler
-    .map((x) => KISILIKLER.find((y) => y.key === x)?.ad ?? x)
-    .join(" ve ");
-  const meslek = MESLEKLER.find((m) => m.key === k.meslek)?.ad ?? k.meslek;
+  const kisilik = k.kisilikler.map((o) => o.ad).join(", ") || "belirtilmemiş";
+  const meslek = k.meslek.ad;
   const hedef = HEDEFLER.find((h) => h.key === k.hedef)?.ad ?? k.hedef;
   const aktif = durum.iliskiler
     .filter((i) => i.aktif)
@@ -248,6 +247,131 @@ Oyuncunun hedefi: ${hedef?.ad ?? durum.karakter.hedef}. Hangisini önerirsin?`;
     return { indeks, gerekce };
   } catch (err) {
     console.error("[aiOneri]", err);
+    return null;
+  }
+}
+
+/* ---------- Serbest metin çözümleme ----------
+   Oyuncu mesleğini ve kişilik özelliklerini kendi kelimeleriyle yazıyor.
+   Yapay zekâ bu metnin HANGİ davranışlarda avantaj/dezavantaj yarattığına
+   karar veriyor ve anlatı cümlelerini yazıyor; SAYILAR oyunun sabit
+   tablosundan geliyor (profilKur), böylece denge modele bırakılmıyor. */
+
+const PROFIL_SISTEM = `Sen bir oyun tasarımcısısın. Sana bir karakterin serbest metinle yazdığı
+mesleği ya da kişilik özelliği veriliyor. Bunu oyunun davranış etiketlerine çevireceksin.
+
+SADECE şu JSON'u döndür:
+{"guclu": string[], "zayif": string[], "notlar": {"<etiket>": string}}
+
+ETİKETLER (sadece bunlar): ${ETIKET_LISTESI.join(", ")}
+
+Anlamları: cesaret=karşı durmak · kacinma=geri çekilmek · risk=kumar oynamak · guvenli=garantici
+sosyal=insanlara açılmak · yalniz=kendi köşesine çekilmek · romantik=sevgi · sadakat=arkasında durmak
+calisma=emek/mesai · tembellik=boş vermek · yardim=karşılıksız destek · bencil=kendini öne almak
+durustluk=doğruyu söylemek · hile=kestirme/kandırma · tip=sağlık işleri · sanat=yaratıcı iş
+teknik=çözümleme/mühendislik · ticaret=alım satım/fırsat · spor=fiziksel güç · kesif=yeni olana atılmak
+
+KURALLAR
+1. "guclu": bu özelliğin AVANTAJ sağladığı 1-3 etiket. En belirleyici olan başa yazılsın.
+2. "zayif": bu özelliğin ZORLANDIĞI 0-2 etiket. Güçlü listesindekiler burada olamaz.
+3. "notlar": her etiket için oyun içinde gösterilecek TEK cümle. Türkçe, ikinci tekil şahıs,
+   özelliğin adını doğal biçimde geçir. Örn tip için: "Hemşirelik eğilimin burada nabzı tuttu."
+   Klişe olmasın, "bu sana yardımcı oldu" gibi boş cümle kurma.
+4. Metin anlamsızsa ya da uydurma bir kelimeyse yine de en yakın etiketleri seç, boş dönme.`;
+
+/** Serbest metin meslek/kişilik → oyun profili. Başarısız olursa null (yerel sözlük devreye girer). */
+export async function aiProfilCoz(ad: string, tur: "kisilik" | "meslek"): Promise<Ozellik | null> {
+  const temiz = metniKirp(ad, 40);
+  if (!temiz) return null;
+  const user = `Tür: ${tur === "meslek" ? "meslek / uğraş" : "kişilik özelliği"}
+Metin: "${temiz}"
+
+Bu metni etiketlere çevir.`;
+
+  try {
+    const ham = await askAi(PROFIL_SISTEM, user, 0.5, ["guclu"]);
+    const etiket = (v: unknown) =>
+      (Array.isArray(v) ? v : [])
+        .map((x) => String(x).trim())
+        .filter((x): x is Etiket => (ETIKET_LISTESI as string[]).includes(x));
+    const guclu = etiket(ham.guclu);
+    if (!guclu.length) return null;
+    const zayif = etiket(ham.zayif);
+    const hamNotlar = (ham.notlar ?? {}) as Record<string, unknown>;
+    const notlar: Partial<Record<Etiket, string>> = {};
+    [...guclu, ...zayif].forEach((e) => {
+      const n = metniKirp(hamNotlar[e], 160);
+      if (n) notlar[e] = n;
+    });
+    return profilKur(temiz, guclu, zayif, notlar, tur, "ai");
+  } catch (err) {
+    console.error("[aiProfilCoz]", err);
+    return null;
+  }
+}
+
+const ISIM_SISTEM = `Sen Türkçe isim öneren bir asistansın.
+SADECE şu JSON'u döndür: {"isim": string}
+KURALLAR
+1. Tek bir Türkçe ilk isim öner. Soyisim, unvan, açıklama ekleme.
+2. Verilen cinsiyete uygun olsun. Cinsiyet "belirsiz" ise her iki cinste de kullanılan
+   bir isim seç (Deniz, Umut, Toprak, Yağmur gibi).
+3. "Kaçınılacak" listesindekileri ve klişeleşmiş ilk akla gelen isimleri tekrarlama;
+   her seferinde farklı bir isim öner. En fazla 14 karakter.`;
+
+export async function aiIsimOner(cinsiyet: string, kacinilan: string[]): Promise<string | null> {
+  const etiket = cinsiyet === "kadin" ? "kadın" : cinsiyet === "erkek" ? "erkek" : "belirsiz";
+  try {
+    const ham = await askAi(
+      ISIM_SISTEM,
+      `Cinsiyet: ${etiket}
+Kaçınılacak: ${kacinilan.slice(0, 15).join(", ") || "yok"}
+Tohum: ${Math.random().toString(36).slice(2, 8)}`,
+      1.2,
+      ["isim"],
+    );
+    const isim = metniKirp(ham.isim, 14)
+      .replace(/[^\p{L}\s'-]/gu, "")
+      .trim();
+    return isim || null;
+  } catch (err) {
+    console.error("[aiIsimOner]", err);
+    return null;
+  }
+}
+
+const ONERI_ALAN_SISTEM = `Sen bir karakter yaratma asistanısın. TÜRKÇE, kısa ve somut yaz.
+SADECE şu JSON'u döndür: {"value": string}
+- meslek: gerçek bir meslek/uğraş, en fazla 4 kelime. Örn: "gece vardiyası hemşiresi".
+- kisilik: TEK bir kişilik sıfatı ya da en fazla 2 kelimelik bir huy. Örn: "inatçı", "gözü pek".
+İPUCU KURALI (en önemli kural): Kullanıcı bir ipucu verdiyse öneri MUTLAKA o konunun içinden gelmeli.
+İpucu bir alan olabilir ("deniz", "uzay", "satranç", "kundak") — o dünyanın içinden somut bir şey üret:
+"deniz" → "gemi makinisti", "satranç" → "satranç antrenörü", "uzay" → "uydu yörünge teknisyeni".
+İpucunu olduğu gibi kopyalamak ya da parantezli ek yapmak YASAK. Klişe olmasın, her seferinde farklı üret.`;
+
+export async function aiAlanOner(
+  tur: "meslek" | "kisilik",
+  ipucu: string | undefined,
+  kacinilan: string[],
+): Promise<string | null> {
+  const user = `İstenen: ${tur === "meslek" ? "meslek" : "kişilik özelliği"}.
+${ipucu ? `Kullanıcının verdiği kelime (ZORUNLU uy, aynen tekrarlama): "${ipucu}"` : "Serbest, sürpriz bir öneri üret."}
+${kacinilan.length ? `Şunları tekrar etme: ${kacinilan.slice(0, 15).join(" | ")}` : ""}
+Tohum: ${Math.random().toString(36).slice(2, 8)}`;
+
+  try {
+    const ham = await askAi(ONERI_ALAN_SISTEM, user, 1.15, ["value"]);
+    const deger = metniKirp(ham.value, 40)
+      .replace(/\s*\([^)]*\)/g, "")
+      .replace(/^["'`]+|["'`]+$/g, "")
+      .trim();
+    if (!deger) return null;
+    // İpucunu aynen geri veren cevabı kabul etme.
+    if (ipucu && deger.toLocaleLowerCase("tr") === ipucu.trim().toLocaleLowerCase("tr"))
+      return null;
+    return deger;
+  } catch (err) {
+    console.error("[aiAlanOner]", err);
     return null;
   }
 }

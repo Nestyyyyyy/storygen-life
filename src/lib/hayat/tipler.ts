@@ -46,14 +46,30 @@ export type Iliski = {
   bitis?: number;
 };
 
+/** Serbest metinle girilen bir meslek ya da kişilik özelliğinin oyun karşılığı.
+ *  Oyuncu ne yazarsa yazsın, çözümleyici (profil.ts) ya da yapay zekâ onu
+ *  etiket etkilerine çevirir; motor sadece bu şekli tanır. */
+export type Ozellik = {
+  /** Oyuncunun yazdığı metin — ekranda ve anlatıda bu görünür. */
+  ad: string;
+  /** Etiket → bu özelliğin o davranışa kattığı etki ve anlatı cümlesi. */
+  etkiler: Partial<Record<Etiket, { fx: Etki; paraCarpan?: number; not: string }>>;
+  /** Oyuna başlarken statlara bir kerelik etki. */
+  fx?: Etki;
+  /** Profili kim çıkardı: yerel sözlük mü, yapay zekâ mı? */
+  kaynak?: "yerel" | "ai";
+};
+
 export type Karakter = {
   isim: string;
   cinsiyet: "kadin" | "erkek" | "belirsiz";
   baslangic: "bebek" | "cocuk" | "genc";
   koken: "varlikli" | "orta" | "zor" | "kimsesiz";
-  meslek: "doktor" | "sanatci" | "muhendis" | "girisimci" | "sporcu" | "belirsiz";
+  /** Serbest metin: "gemi makinisti", "gece vardiyası hemşiresi"... */
+  meslek: Ozellik;
   hedef: "servet" | "ask" | "iz" | "huzur" | "zirve";
-  kisilikler: string[];
+  /** Serbest metin, sayısı sınırsız. Çok yazılırsa her biri daha hafif etki eder. */
+  kisilikler: Ozellik[];
 };
 
 /** Bir seçeneğin oynanabilir hali. */

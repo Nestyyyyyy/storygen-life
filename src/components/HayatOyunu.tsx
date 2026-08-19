@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
+  AlertCircle,
   Briefcase,
   Check,
   ChevronLeft,
@@ -15,10 +16,13 @@ import {
   Heart,
   Lightbulb,
   Loader2,
+  MessageSquarePlus,
+  Plus,
   RotateCcw,
   Smile,
   Sparkles,
   Users,
+  X,
 } from "lucide-react";
 
 import {
@@ -26,6 +30,7 @@ import {
   CINSIYETLER,
   EVRE_ADI,
   HEDEFLER,
+  ISIMLER,
   KISILIKLER,
   KOKENLER,
   MESLEKLER,
@@ -34,6 +39,7 @@ import {
   STAT_ANAHTARLARI,
   evreBul,
 } from "@/lib/hayat/veri";
+import { yerelOneri, yerelOzellik } from "@/lib/hayat/profil";
 import {
   anlatiKur,
   clamp,
@@ -52,7 +58,15 @@ import {
   unvanBul,
   yasArtisi,
 } from "@/lib/hayat/motor";
-import type { Durum, Iliski, Olay, Secenek, StatAnahtar, Statlar } from "@/lib/hayat/tipler";
+import type {
+  Durum,
+  Iliski,
+  Olay,
+  Ozellik,
+  Secenek,
+  StatAnahtar,
+  Statlar,
+} from "@/lib/hayat/tipler";
 import type { Oneri } from "@/lib/hayat/motor";
 
 /* ---------- Renkler & Fontlar ---------- */
@@ -109,9 +123,30 @@ export type SahneSaglayici = (girdi: {
 
 export type OneriSaglayici = (girdi: { durum: Durum; olay: Olay }) => Promise<Oneri>;
 
+/** Karakter oluştururken "Öner" düğmesinin çağırdığı sağlayıcılar. */
+export type AlanOneriSaglayici = (girdi: {
+  tur: "meslek" | "kisilik";
+  ipucu?: string;
+  kacinilan: string[];
+}) => Promise<{ deger: string; kaynak: "ai" | "yerel" }>;
+
+export type IsimOneriSaglayici = (girdi: {
+  cinsiyet: "kadin" | "erkek" | "belirsiz";
+  kacinilan: string[];
+}) => Promise<{ deger: string; kaynak: "ai" | "yerel" }>;
+
+/** Serbest metni oyun profiline çeviren sağlayıcı. */
+export type ProfilSaglayici = (girdi: {
+  ad: string;
+  tur: "meslek" | "kisilik";
+}) => Promise<Ozellik>;
+
 type Props = {
   sahneSaglayici?: SahneSaglayici;
   oneriSaglayici?: OneriSaglayici;
+  alanOneriSaglayici?: AlanOneriSaglayici;
+  isimOneriSaglayici?: IsimOneriSaglayici;
+  profilSaglayici?: ProfilSaglayici;
 };
 
 type GunlukKayit = {
@@ -131,19 +166,29 @@ type SonucGorunum = {
   basarisiz: boolean;
 };
 
-export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
+export default function HayatOyunu({
+  sahneSaglayici,
+  oneriSaglayici,
+  alanOneriSaglayici,
+  isimOneriSaglayici,
+  profilSaglayici,
+}: Props) {
   /* ---- ekran ---- */
   const [ekran, setEkran] = useState<"olustur" | "oyun" | "bitis">("olustur");
   const [adim, setAdim] = useState(0);
 
   /* ---- karakter oluşturma ---- */
   const [isim, setIsim] = useState("");
-  const [cinsiyet, setCinsiyet] = useState<"kadin" | "erkek" | "belirsiz">("belirsiz");
+  /** Başlangıçta seçilmemiş: isim önerisi istenirse önce uyarı verilir. */
+  const [cinsiyet, setCinsiyet] = useState<"kadin" | "erkek" | "belirsiz" | null>(null);
+  const [cinsiyetUyari, setCinsiyetUyari] = useState(false);
   const [baslangic, setBaslangic] = useState<"bebek" | "cocuk" | "genc">("cocuk");
   const [koken, setKoken] = useState<"varlikli" | "orta" | "zor" | "kimsesiz">("orta");
-  const [meslek, setMeslek] = useState<Durum["karakter"]["meslek"]>("belirsiz");
+  const [meslekMetni, setMeslekMetni] = useState("");
   const [hedef, setHedef] = useState<Durum["karakter"]["hedef"]>("huzur");
-  const [kisilikler, setKisilikler] = useState<string[]>([]);
+  const [kisilikMetinleri, setKisilikMetinleri] = useState<string[]>([]);
+  const [kisilikGirdi, setKisilikGirdi] = useState("");
+  const [hazirlaniyor, setHazirlaniyor] = useState(false);
 
   /* ---- oyun ---- */
   const [durum, setDurum] = useState<Durum | null>(null);
@@ -195,32 +240,63 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
     gecenBasliklar.current = [olay.baslik, ...gecenBasliklar.current].slice(0, 30);
   }, [olay]);
 
+  /* ---- serbest metin → oyun profili ---- */
+  const profilCoz = useCallback(
+    async (ad: string, tur: "meslek" | "kisilik"): Promise<Ozellik> => {
+      if (profilSaglayici) {
+        try {
+          return await profilSaglayici({ ad, tur });
+        } catch (err) {
+          console.error("[profilCoz]", err);
+        }
+      }
+      return yerelOzellik(ad, tur === "meslek" ? "meslek" : "kisilik");
+    },
+    [profilSaglayici],
+  );
+
   /* ---- oyunu başlat ---- */
-  function baslat(mod: (typeof MODES)[number]) {
+  async function baslat(mod: (typeof MODES)[number]) {
+    if (hazirlaniyor) return;
+    setHazirlaniyor(true);
+
     const sb = BASLANGICLAR.find((b) => b.key === baslangic)!;
     const sk = KOKENLER.find((k) => k.key === koken)!;
-    const sm = MESLEKLER.find((m) => m.key === meslek)!;
-    const secilenKisilikler = kisilikler.length === 2 ? kisilikler : ["cesur", "durust"];
+    const meslekAdi = meslekMetni.trim() || "Belirsiz";
+    const kisilikAdlari = kisilikMetinleri.length ? kisilikMetinleri : ["Cesur", "Dürüst"];
+
+    /* Yazılan metinler oyun profiline çevriliyor (yapay zekâ varsa o çeviriyor). */
+    const [meslekProfil, ...kisilikProfilleri] = await Promise.all([
+      profilCoz(meslekAdi, "meslek"),
+      ...kisilikAdlari.map((k) => profilCoz(k, "kisilik")),
+    ]);
 
     const statlar = { ...mod.start } as Statlar;
-    [sb.fx, sk.fx, sm.fx].forEach((fx) => fxTopla(statlar, fx));
-    secilenKisilikler.forEach((k) => fxTopla(statlar, KISILIKLER.find((x) => x.key === k)?.fx));
+    [sb.fx, sk.fx, meslekProfil.fx].forEach((fx) => fxTopla(statlar, fx));
+    // Çok kişilik yazıldıysa başlangıç etkileri de aynı oranda hafifler.
+    const kCarpan = 2 / Math.max(2, kisilikProfilleri.length);
+    kisilikProfilleri.forEach((o) => {
+      if (!o.fx) return;
+      (Object.keys(o.fx) as StatAnahtar[]).forEach((k) => {
+        statlar[k] += Math.round((o.fx![k] ?? 0) * kCarpan);
+      });
+    });
     STAT_ANAHTARLARI.forEach((k) => (statlar[k] = clamp(statlar[k])));
 
     const yeniDurum: Durum = {
       yas: sb.yas,
-      omur: Math.max(sb.yas + 20, omurHesapla(koken, meslek)),
+      omur: Math.max(sb.yas + 20, omurHesapla(koken, meslekAdi)),
       statlar,
       para: Math.round(mod.para * sk.paraCarpan + sk.paraEk),
       mod: mod.key,
       karakter: {
         isim: isim.trim() || "Sen",
-        cinsiyet,
+        cinsiyet: cinsiyet ?? "belirsiz",
         baslangic,
         koken,
-        meslek,
+        meslek: meslekProfil,
         hedef,
-        kisilikler: secilenKisilikler,
+        kisilikler: kisilikProfilleri,
       },
       bayraklar: [],
       iliskiler: [],
@@ -235,6 +311,7 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
     setSonuc(null);
     setOlumSebep("");
     setEkran("oyun");
+    setHazirlaniyor(false);
     void sahneGetir(yeniDurum);
   }
 
@@ -359,23 +436,62 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
   function yenidenBasla() {
     setEkran("olustur");
     setAdim(0);
-    setKisilikler([]);
     setDurum(null);
     setOlay(null);
   }
 
-  function kisilikSec(key: string) {
-    setKisilikler((m) =>
-      m.includes(key) ? m.filter((k) => k !== key) : m.length >= 2 ? [m[1], key] : [...m, key],
+  function kisilikEkle(ham: string) {
+    const ad = ham.trim().slice(0, 40);
+    if (!ad) return;
+    setKisilikMetinleri((m) =>
+      m.some((x) => x.toLocaleLowerCase("tr") === ad.toLocaleLowerCase("tr")) ? m : [...m, ad],
     );
+    setKisilikGirdi("");
+  }
+
+  /* ---- karakter oluşturma önerileri ---- */
+  async function alanOner(tur: "meslek" | "kisilik", ipucu?: string) {
+    const kacinilan = (tur === "meslek" ? [meslekMetni] : kisilikMetinleri).filter(Boolean);
+    if (alanOneriSaglayici) {
+      try {
+        return (await alanOneriSaglayici({ tur, ipucu, kacinilan })).deger;
+      } catch (err) {
+        console.error("[alanOner]", err);
+      }
+    }
+    return yerelOneri(tur, ipucu, kacinilan);
+  }
+
+  async function isimOner(): Promise<string | null> {
+    if (!cinsiyet) {
+      setCinsiyetUyari(true);
+      return null;
+    }
+    if (isimOneriSaglayici) {
+      try {
+        return (await isimOneriSaglayici({ cinsiyet, kacinilan: isim ? [isim] : [] })).deger;
+      } catch (err) {
+        console.error("[isimOner]", err);
+      }
+    }
+    const havuz =
+      cinsiyet === "kadin"
+        ? ISIMLER.kadin
+        : cinsiyet === "erkek"
+          ? ISIMLER.erkek
+          : [...ISIMLER.kadin, ...ISIMLER.erkek];
+    const taze = havuz.filter((i) => i !== isim);
+    return taze[Math.floor(Math.random() * taze.length)];
   }
 
   /* ================= KARAKTER OLUŞTURMA ================= */
   if (ekran === "olustur") {
-    const ileriAktif = adim !== 5 || kisilikler.length === 2;
+    const ileriAktif =
+      (adim !== 0 || cinsiyet !== null) &&
+      (adim !== 3 || meslekMetni.trim().length > 0) &&
+      (adim !== 5 || kisilikMetinleri.length > 0);
     const sb = BASLANGICLAR.find((b) => b.key === baslangic)!;
     const sk = KOKENLER.find((k) => k.key === koken)!;
-    const sm = MESLEKLER.find((m) => m.key === meslek)!;
     const sh = HEDEFLER.find((h) => h.key === hedef)!;
 
     return (
@@ -408,26 +524,41 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
 
         {adim === 0 && (
           <div>
-            <label style={etiketStyle}>Adın</label>
-            <input
-              value={isim}
-              onChange={(e) => setIsim(e.target.value)}
-              placeholder="Adını yaz..."
-              maxLength={16}
-              style={inputStyle}
+            <SerbestAlan
+              etiket="Adın"
+              deger={isim}
+              onDegis={setIsim}
+              yerTutucu="Adını yaz ya da öneri al..."
+              maxUzunluk={16}
+              onOner={isimOner}
+              ipucuVar={false}
+              uyari={
+                cinsiyetUyari && !cinsiyet
+                  ? "İsim önerisi için önce cinsiyet seç — öneri ona göre yapılıyor."
+                  : undefined
+              }
             />
+
             <label style={{ ...etiketStyle, marginTop: 18 }}>Cinsiyet</label>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {CINSIYETLER.map((c) => (
                 <Pill
                   key={c.key}
                   secili={cinsiyet === c.key}
-                  onClick={() => setCinsiyet(c.key as typeof cinsiyet)}
+                  onClick={() => {
+                    setCinsiyet(c.key as "kadin" | "erkek" | "belirsiz");
+                    setCinsiyetUyari(false);
+                  }}
                 >
                   {c.emoji} {c.ad}
                 </Pill>
               ))}
             </div>
+            {!cinsiyet && (
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 8 }}>
+                Devam etmek için bir seçenek işaretle.
+              </div>
+            )}
           </div>
         )}
 
@@ -469,19 +600,31 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
 
         {adim === 3 && (
           <StepBlok
-            baslik="İçinden gelen ne?"
-            alt="Kariyer ve para olaylarında sana bonus verir, önerileri de değiştirir."
+            baslik="Ne olmak istiyorsun?"
+            alt="Kendi kelimelerinle yaz. Aklına bir şey gelmezse öner, ya da tek bir kelime ver (deniz, uzay, satranç) — ondan bir meslek türetilsin."
           >
-            {MESLEKLER.map((m) => (
-              <SecimKarti
-                key={m.key}
-                emoji={m.emoji}
-                ad={m.ad}
-                aciklama={m.aciklama}
-                secili={meslek === m.key}
-                onClick={() => setMeslek(m.key as typeof meslek)}
-              />
-            ))}
+            <SerbestAlan
+              etiket="Meslek eğilimi"
+              deger={meslekMetni}
+              onDegis={setMeslekMetni}
+              yerTutucu="örn. gemi makinisti"
+              maxUzunluk={40}
+              onOner={() => alanOner("meslek")}
+              onIpucuIleOner={(ip) => alanOner("meslek", ip)}
+              ipucuYerTutucu="Bir kelime ver: deniz, uzay, satranç..."
+            />
+            <div style={{ fontSize: 12, color: C.muted, marginTop: -2 }}>Hazır fikirler:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+              {MESLEKLER.filter((m) => m.key !== "belirsiz").map((m) => (
+                <Pill
+                  key={m.key}
+                  secili={meslekMetni === m.ad}
+                  onClick={() => setMeslekMetni(m.ad)}
+                >
+                  {m.emoji} {m.ad}
+                </Pill>
+              ))}
+            </div>
           </StepBlok>
         )}
 
@@ -506,28 +649,77 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
         {adim === 5 && (
           <StepBlok
             baslik="Sen nasıl birisin?"
-            alt={`İki özellik seç. (${kisilikler.length}/2) Seçimlerinin sonuçlarını ömür boyu değiştirirler.`}
+            alt="İstediğin kadar özellik yaz. Ne kadar çok yazarsan her biri o kadar hafif etki eder; azı keskin, çoğu dengeli bir karakter yapar."
           >
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <SerbestAlan
+              etiket="Kişilik özelliği"
+              deger={kisilikGirdi}
+              onDegis={setKisilikGirdi}
+              yerTutucu="örn. inatçı"
+              maxUzunluk={40}
+              onEkle={() => kisilikEkle(kisilikGirdi)}
+              onOner={async () => {
+                const d = await alanOner("kisilik");
+                if (d) kisilikEkle(d);
+                return null;
+              }}
+              onIpucuIleOner={async (ip) => {
+                const d = await alanOner("kisilik", ip);
+                if (d) kisilikEkle(d);
+                return null;
+              }}
+              ipucuYerTutucu="Bir kelime ver: kavgacı, sessiz, para..."
+            />
+
+            {kisilikMetinleri.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                {kisilikMetinleri.map((k) => (
+                  <span
+                    key={k}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "8px 10px 8px 13px",
+                      borderRadius: 20,
+                      fontSize: 13.5,
+                      background: C.gold,
+                      color: "#2b1d00",
+                      fontWeight: 700,
+                    }}
+                  >
+                    {k}
+                    <button
+                      onClick={() => setKisilikMetinleri((m) => m.filter((x) => x !== k))}
+                      aria-label={`${k} özelliğini çıkar`}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        border: "none",
+                        background: "transparent",
+                        color: "#2b1d00",
+                        cursor: "pointer",
+                        padding: 0,
+                      }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div style={{ fontSize: 12, color: C.muted }}>Hazır fikirler:</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
               {KISILIKLER.map((k) => (
                 <Pill
                   key={k.key}
-                  secili={kisilikler.includes(k.key)}
-                  onClick={() => kisilikSec(k.key)}
+                  secili={kisilikMetinleri.includes(k.ad)}
+                  onClick={() => kisilikEkle(k.ad)}
                 >
                   {k.emoji} {k.ad}
                 </Pill>
               ))}
-            </div>
-            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-              {kisilikler.map((key) => {
-                const k = KISILIKLER.find((x) => x.key === key)!;
-                return (
-                  <div key={key} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.4 }}>
-                    <b style={{ color: C.cream }}>{k.ad}:</b> {k.aciklama}
-                  </div>
-                );
-              })}
             </div>
           </StepBlok>
         )}
@@ -539,18 +731,14 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
                 {isim.trim() || "Sen"}
               </div>
               <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6, marginTop: 4 }}>
-                {CINSIYETLER.find((c) => c.key === cinsiyet)!.ad} · {sb.ad} ({sb.yas} yaş)
+                {CINSIYETLER.find((c) => c.key === cinsiyet)?.ad ?? "Belirtilmedi"} · {sb.ad} (
+                {sb.yas} yaş)
                 <br />
-                {sk.emoji} {sk.ad} · {sm.emoji} {sm.ad}
+                {sk.emoji} {sk.ad} · 💼 {meslekMetni.trim() || "Belirsiz"}
                 <br />
                 {sh.emoji} Hedef: {sh.ad}
                 <br />
-                {kisilikler
-                  .map((k) => {
-                    const x = KISILIKLER.find((y) => y.key === k)!;
-                    return `${x.emoji} ${x.ad}`;
-                  })
-                  .join(" · ")}
+                🧬 {kisilikMetinleri.length ? kisilikMetinleri.join(" · ") : "Cesur · Dürüst"}
               </div>
             </div>
 
@@ -559,7 +747,12 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {MODES.map((m) => (
-                <button key={m.key} onClick={() => baslat(m)} style={modKartStyle}>
+                <button
+                  key={m.key}
+                  onClick={() => void baslat(m)}
+                  disabled={hazirlaniyor}
+                  style={{ ...modKartStyle, opacity: hazirlaniyor ? 0.6 : 1 }}
+                >
                   <span style={{ fontSize: 30 }}>{m.emoji}</span>
                   <span style={{ flex: 1 }}>
                     <span style={{ fontFamily: serif, fontSize: 18, fontWeight: 700 }}>{m.ad}</span>
@@ -608,7 +801,13 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
                 cursor: ileriAktif ? "pointer" : "default",
               }}
             >
-              {adim === 5 && !ileriAktif ? "İki özellik seç" : "Devam →"}
+              {!ileriAktif
+                ? adim === 0
+                  ? "Cinsiyet seç"
+                  : adim === 3
+                    ? "Bir meslek yaz"
+                    : "En az bir özellik ekle"
+                : "Devam →"}
             </button>
           )}
         </div>
@@ -675,19 +874,11 @@ export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
         </div>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-          {durum.karakter.kisilikler.map((k) => {
-            const x = KISILIKLER.find((y) => y.key === k)!;
-            return (
-              <MiniRozet key={k}>
-                {x.emoji} {x.ad}
-              </MiniRozet>
-            );
-          })}
-          {durum.karakter.meslek !== "belirsiz" && (
-            <MiniRozet>
-              {MESLEKLER.find((m) => m.key === durum.karakter.meslek)!.emoji}{" "}
-              {MESLEKLER.find((m) => m.key === durum.karakter.meslek)!.ad}
-            </MiniRozet>
+          {durum.karakter.kisilikler.map((o) => (
+            <MiniRozet key={o.ad}>{o.ad}</MiniRozet>
+          ))}
+          {!/^belirsiz$/i.test(durum.karakter.meslek.ad) && (
+            <MiniRozet>💼 {durum.karakter.meslek.ad}</MiniRozet>
           )}
           <MiniRozet renk={C.gold}>
             {hedefBilgi.emoji} {hedefBilgi.ad}
@@ -1312,6 +1503,182 @@ function SecimKarti({
       </span>
       {secili && <Check size={18} color={C.gold} />}
     </button>
+  );
+}
+
+/**
+ * Serbest metin alanı + öneri düğmeleri.
+ * "Öner" boşken sürpriz bir değer getirir; "İpucu ver" ile bir kelime
+ * yazılırsa öneri o kelimenin dünyasından türetilir.
+ */
+function SerbestAlan({
+  etiket,
+  deger,
+  onDegis,
+  yerTutucu,
+  maxUzunluk,
+  onOner,
+  onIpucuIleOner,
+  onEkle,
+  ipucuYerTutucu = "Bir kelime ver...",
+  ipucuVar = true,
+  uyari,
+}: {
+  etiket: string;
+  deger: string;
+  onDegis: (v: string) => void;
+  yerTutucu: string;
+  maxUzunluk: number;
+  onOner: () => Promise<string | null>;
+  onIpucuIleOner?: (ipucu: string) => Promise<string | null>;
+  onEkle?: () => void;
+  ipucuYerTutucu?: string;
+  ipucuVar?: boolean;
+  uyari?: string;
+}) {
+  const [mesgul, setMesgul] = useState(false);
+  const [ipucuAcik, setIpucuAcik] = useState(false);
+  const [ipucu, setIpucu] = useState("");
+
+  async function iste(ip?: string) {
+    if (mesgul) return;
+    setMesgul(true);
+    try {
+      const sonuc = ip && onIpucuIleOner ? await onIpucuIleOner(ip) : await onOner();
+      if (sonuc) onDegis(sonuc);
+    } finally {
+      setMesgul(false);
+    }
+  }
+
+  return (
+    <div>
+      <label style={etiketStyle}>{etiket}</label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input
+          value={deger}
+          onChange={(e) => onDegis(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && onEkle) {
+              e.preventDefault();
+              onEkle();
+            }
+          }}
+          placeholder={yerTutucu}
+          maxLength={maxUzunluk}
+          style={{ ...inputStyle, flex: 1 }}
+        />
+        {onEkle && (
+          <button
+            onClick={onEkle}
+            aria-label="Ekle"
+            style={{
+              ...secenekStyle,
+              width: "auto",
+              padding: "0 14px",
+              display: "flex",
+              alignItems: "center",
+              color: C.gold,
+            }}
+          >
+            <Plus size={18} />
+          </button>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button
+          onClick={() => void iste()}
+          disabled={mesgul}
+          style={{
+            ...secenekStyle,
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 7,
+            color: C.gold,
+            borderStyle: "dashed",
+            fontSize: 13.5,
+          }}
+        >
+          {mesgul ? (
+            <Loader2 size={15} style={{ animation: "hs-spin 1s linear infinite" }} />
+          ) : (
+            <Sparkles size={15} />
+          )}
+          {mesgul ? "Düşünüyor..." : "Öner"}
+        </button>
+        {ipucuVar && (
+          <button
+            onClick={() => setIpucuAcik((o) => !o)}
+            style={{
+              ...secenekStyle,
+              width: "auto",
+              padding: "0 14px",
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: ipucuAcik ? C.gold : C.muted,
+              fontSize: 13.5,
+            }}
+          >
+            <MessageSquarePlus size={15} /> İpucu ver
+          </button>
+        )}
+      </div>
+
+      {ipucuAcik && (
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input
+            value={ipucu}
+            onChange={(e) => setIpucu(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void iste(ipucu.trim() || undefined);
+              }
+            }}
+            placeholder={ipucuYerTutucu}
+            maxLength={40}
+            style={{ ...inputStyle, flex: 1, fontSize: 14 }}
+          />
+          <button
+            onClick={() => void iste(ipucu.trim() || undefined)}
+            disabled={mesgul}
+            style={{
+              ...secenekStyle,
+              width: "auto",
+              padding: "0 16px",
+              background: C.gold,
+              color: "#2b1d00",
+              borderColor: C.gold,
+              fontWeight: 700,
+              fontSize: 13.5,
+            }}
+          >
+            Türet
+          </button>
+        </div>
+      )}
+
+      {uyari && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 6,
+            marginTop: 8,
+            fontSize: 12.5,
+            color: "#ffb0b0",
+            lineHeight: 1.45,
+          }}
+        >
+          <AlertCircle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+          {uyari}
+        </div>
+      )}
+    </div>
   );
 }
 

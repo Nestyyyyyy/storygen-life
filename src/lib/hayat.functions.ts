@@ -5,9 +5,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { aiOneri, aiSahneUret } from "./hayat.server";
+import { aiAlanOner, aiIsimOner, aiOneri, aiProfilCoz, aiSahneUret } from "./hayat.server";
 import { olaySec, oneriHesapla, type Oneri } from "./hayat/motor";
-import type { Durum, Olay } from "./hayat/tipler";
+import { yerelOneri, yerelOzellik } from "./hayat/profil";
+import { ISIMLER } from "./hayat/veri";
+import type { Durum, Olay, Ozellik } from "./hayat/tipler";
 
 const StatlarSchema = z.object({
   saglik: z.number(),
@@ -17,14 +19,26 @@ const StatlarSchema = z.object({
   kariyer: z.number(),
 });
 
+const EtkiSchema = z.record(z.string(), z.number());
+
+const OzellikSchema = z.object({
+  ad: z.string().max(40),
+  etkiler: z.record(
+    z.string(),
+    z.object({ fx: EtkiSchema, paraCarpan: z.number().optional(), not: z.string().max(200) }),
+  ),
+  fx: EtkiSchema.optional(),
+  kaynak: z.enum(["yerel", "ai"]).optional(),
+});
+
 const KarakterSchema = z.object({
   isim: z.string().max(24),
   cinsiyet: z.enum(["kadin", "erkek", "belirsiz"]),
   baslangic: z.enum(["bebek", "cocuk", "genc"]),
   koken: z.enum(["varlikli", "orta", "zor", "kimsesiz"]),
-  meslek: z.enum(["doktor", "sanatci", "muhendis", "girisimci", "sporcu", "belirsiz"]),
+  meslek: OzellikSchema,
   hedef: z.enum(["servet", "ask", "iz", "huzur", "zirve"]),
-  kisilikler: z.array(z.string()).max(4),
+  kisilikler: z.array(OzellikSchema).max(20),
 });
 
 const IliskiSchema = z.object({
@@ -109,4 +123,56 @@ export const oneriGetir = createServerFn({ method: "POST" })
     const ai = await aiOneri(olay, durum);
     if (!ai) return yerel;
     return { indeks: ai.indeks, gerekce: ai.gerekce, puanlar: yerel.puanlar, kaynak: "ai" };
+  });
+
+/* ---------- Karakter oluşturma yardımcıları ---------- */
+
+const AlanOneriGirdi = z.object({
+  tur: z.enum(["meslek", "kisilik"]),
+  ipucu: z.string().max(60).optional(),
+  kacinilan: z.array(z.string().max(60)).max(20).default([]),
+});
+
+/** "Öner" düğmesi: boşsa sürpriz bir öneri, ipucu verilmişse o kelimeden türetir. */
+export const alanOner = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => AlanOneriGirdi.parse(input))
+  .handler(async ({ data }): Promise<{ deger: string; kaynak: "ai" | "yerel" }> => {
+    const ai = await aiAlanOner(data.tur, data.ipucu, data.kacinilan);
+    if (ai) return { deger: ai, kaynak: "ai" };
+    return { deger: yerelOneri(data.tur, data.ipucu, data.kacinilan), kaynak: "yerel" };
+  });
+
+const IsimOneriGirdi = z.object({
+  cinsiyet: z.enum(["kadin", "erkek", "belirsiz"]),
+  kacinilan: z.array(z.string().max(40)).max(20).default([]),
+});
+
+export const isimOner = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => IsimOneriGirdi.parse(input))
+  .handler(async ({ data }): Promise<{ deger: string; kaynak: "ai" | "yerel" }> => {
+    const ai = await aiIsimOner(data.cinsiyet, data.kacinilan);
+    if (ai) return { deger: ai, kaynak: "ai" };
+    const havuz =
+      data.cinsiyet === "kadin"
+        ? ISIMLER.kadin
+        : data.cinsiyet === "erkek"
+          ? ISIMLER.erkek
+          : [...ISIMLER.kadin, ...ISIMLER.erkek];
+    const taze = havuz.filter((i) => !data.kacinilan.includes(i));
+    const liste = taze.length ? taze : havuz;
+    return { deger: liste[Math.floor(Math.random() * liste.length)], kaynak: "yerel" };
+  });
+
+const ProfilGirdi = z.object({
+  ad: z.string().max(40),
+  tur: z.enum(["meslek", "kisilik"]),
+});
+
+/** Serbest metni oyun profiline çevirir: önce yapay zekâ, olmazsa yerel sözlük. */
+export const profilCoz = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => ProfilGirdi.parse(input))
+  .handler(async ({ data }): Promise<Ozellik> => {
+    const ai = await aiProfilCoz(data.ad, data.tur === "meslek" ? "meslek" : "kisilik");
+    if (ai) return ai;
+    return yerelOzellik(data.ad, data.tur === "meslek" ? "meslek" : "kisilik");
   });

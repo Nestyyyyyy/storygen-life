@@ -6,19 +6,42 @@ import { kalipId, rastgeleSahne } from "./uretec";
 import {
   HEDEFLER,
   ISIMLER,
-  KISILIKLER,
-  KISILIK_ETKI,
   KOKENLER,
   KOPEK_ISIMLERI,
-  MESLEKLER,
-  MESLEK_ETKI,
   MESLEK_IMZA_ETIKETLERI,
   STAT_ADI,
   STAT_ANAHTARLARI,
   TON_KURALLARI,
   evreBul,
 } from "./veri";
-import type { Durum, Etki, Iliski, IliskiTur, Olay, Secenek, StatAnahtar, Statlar } from "./tipler";
+import type {
+  Durum,
+  Etiket,
+  Etki,
+  Iliski,
+  IliskiTur,
+  Karakter,
+  Olay,
+  Ozellik,
+  Secenek,
+  StatAnahtar,
+  Statlar,
+} from "./tipler";
+
+/** Karakterin bir davranış etiketine ne kadar yatkın olduğu (pozitif = yatkın). */
+export function etiketEgilimi(karakter: Karakter, etiket: Etiket) {
+  const profiller: Ozellik[] = [karakter.meslek, ...karakter.kisilikler];
+  return profiller.reduce((toplam, o) => {
+    const e = o.etkiler?.[etiket];
+    if (!e) return toplam;
+    return toplam + Object.values(e.fx).reduce((a, b) => a + (b ?? 0), 0);
+  }, 0);
+}
+
+/** Çok sayıda kişilik yazıldığında her biri daha hafif etki eder; toplam güç sabit kalır. */
+export function kisilikCarpani(karakter: Karakter) {
+  return 2 / Math.max(2, karakter.kisilikler.length);
+}
 
 export const clamp = (v: number) => Math.max(0, Math.min(100, Math.round(v)));
 export const paraFmt = (n: number) =>
@@ -112,10 +135,9 @@ function agirlik(olay: Olay, durum: Durum) {
   if (durum.mod === "romantik" && olay.alan === "ask") w *= 3;
   if (durum.mod === "fakir" && olay.alan === "para") w *= 2;
   if (durum.mod === "kaos" && olay.kaosOnly) w *= 3;
-  const meslek = durum.karakter.meslek;
-  if (meslek === "doktor" && olay.alan === "saglik") w *= 1.5;
-  if (meslek === "girisimci" && olay.alan === "para") w *= 1.5;
-  if (meslek === "sanatci" && olay.alan === "hayat") w *= 1.5;
+  if (etiketEgilimi(durum.karakter, "tip") > 0 && olay.alan === "saglik") w *= 1.5;
+  if (etiketEgilimi(durum.karakter, "ticaret") > 0 && olay.alan === "para") w *= 1.5;
+  if (etiketEgilimi(durum.karakter, "sanat") > 0 && olay.alan === "hayat") w *= 1.5;
   return Math.max(1, Math.round(w));
 }
 
@@ -178,11 +200,11 @@ function uygunOlmayanYedek(durum: Durum): Olay {
 export function riskOrani(secenek: Secenek, durum: Durum) {
   let p = secenek.riskli ?? 0;
   const k = durum.karakter;
-  if (k.kisilikler.includes("kurnaz")) p -= 0.08;
-  if (k.kisilikler.includes("hirsli")) p -= 0.05;
-  if (k.kisilikler.includes("umursamaz")) p += 0.07;
-  if (k.kisilikler.includes("cesur")) p -= 0.04;
-  if (k.meslek === "girisimci") p -= 0.08;
+  if (etiketEgilimi(k, "hile") > 0) p -= 0.07;
+  if (etiketEgilimi(k, "calisma") > 0) p -= 0.04;
+  if (etiketEgilimi(k, "tembellik") > 0) p += 0.06;
+  if (etiketEgilimi(k, "cesaret") > 0) p -= 0.04;
+  if (etiketEgilimi(k, "ticaret") > 0) p -= 0.08;
   return Math.max(0.05, Math.min(0.9, p));
 }
 
@@ -200,23 +222,26 @@ export type Hesap = {
   basarisiz: boolean;
 };
 
-/** Etiketlere göre kişilik ve meslek etkilerini toplar. */
+/** Etiketlere göre kişilik ve meslek profillerinin etkilerini toplar. */
 function etiketEtkileri(secenek: Secenek, durum: Durum) {
   const { kisilikler, meslek } = durum.karakter;
+  const carpan = kisilikCarpani(durum.karakter);
   const fx: Etki = {};
   let paraCarpan = 1;
   const kisilikNot = new Map<string, string>(); // özellik başına en fazla bir cümle
   const meslekNot: string[] = [];
 
   secenek.etiketler.forEach((etiket) => {
-    kisilikler.forEach((k) => {
-      const etki = KISILIK_ETKI[k]?.[etiket];
+    kisilikler.forEach((ozellik) => {
+      const etki = ozellik.etkiler?.[etiket];
       if (!etki) return;
-      fxTopla(fx, etki.fx);
-      if (etki.paraCarpan) paraCarpan *= etki.paraCarpan;
-      if (etki.not && !kisilikNot.has(k)) kisilikNot.set(k, etki.not);
+      (Object.keys(etki.fx) as StatAnahtar[]).forEach((k) => {
+        fx[k] = (fx[k] ?? 0) + Math.round((etki.fx[k] ?? 0) * carpan);
+      });
+      if (etki.paraCarpan) paraCarpan *= 1 + (etki.paraCarpan - 1) * carpan;
+      if (etki.not && !kisilikNot.has(ozellik.ad)) kisilikNot.set(ozellik.ad, etki.not);
     });
-    const mEtki = MESLEK_ETKI[meslek]?.[etiket];
+    const mEtki = meslek.etkiler?.[etiket];
     if (mEtki) {
       fxTopla(fx, mEtki.fx);
       if (mEtki.paraCarpan) paraCarpan *= mEtki.paraCarpan;
@@ -253,8 +278,16 @@ export function secimiHesapla(secenek: Secenek, durum: Durum): Hesap {
 
   let anlati = kaynak.sonuc;
   if (!basarisiz && secenek.sonucKisilik) {
-    const eslesen = durum.karakter.kisilikler.find((k) => secenek.sonucKisilik![k]);
-    if (eslesen) anlati = secenek.sonucKisilik[eslesen];
+    const anahtarlar = Object.keys(secenek.sonucKisilik);
+    const eslesen = durum.karakter.kisilikler.find((o) =>
+      anahtarlar.some((a) => o.ad.toLocaleLowerCase("tr").includes(a.toLocaleLowerCase("tr"))),
+    );
+    if (eslesen) {
+      const anahtar = anahtarlar.find((a) =>
+        eslesen.ad.toLocaleLowerCase("tr").includes(a.toLocaleLowerCase("tr")),
+      )!;
+      anlati = secenek.sonucKisilik[anahtar];
+    }
   }
 
   return { fx, dpara, anlati, notlar: ek.notlar, basarisiz };
@@ -340,7 +373,7 @@ export function oneriHesapla(olay: Olay, durum: Durum): Oneri {
     // Borçtayken daha da borçlandıran seçenek cezalı.
     if (durum.para < 0 && a.para < 0) puan -= 6;
     // Riskli seçenekler belirsizlik cezası alır (girişimci daha az).
-    if (a.risk > 0) puan -= a.risk * (durum.karakter.meslek === "girisimci" ? 4 : 9);
+    if (a.risk > 0) puan -= a.risk * (etiketEgilimi(durum.karakter, "ticaret") > 0 ? 4 : 9);
     return { i, puan };
   });
 
@@ -375,10 +408,10 @@ export function oneriHesapla(olay: Olay, durum: Durum): Oneri {
   }
 
   if (a.kisilikSayisi > 0 && gerekceler.length < 2) {
-    const kisilikAdi = durum.karakter.kisilikler
-      .map((k) => KISILIKLER.find((x) => x.key === k))
-      .find((x) => x && secenek.etiketler.some((e) => KISILIK_ETKI[x.key]?.[e]));
-    if (kisilikAdi) gerekceler.push(`${kisilikAdi.ad} yanın bu seçimde avantaja dönüyor.`);
+    const uyan = durum.karakter.kisilikler.find((o) =>
+      secenek.etiketler.some((e) => o.etkiler?.[e]),
+    );
+    if (uyan) gerekceler.push(`${uyan.ad} yanın bu seçimde avantaja dönüyor.`);
   }
 
   if (durum.para < 0 && a.para > 0 && gerekceler.length < 2) {
@@ -445,9 +478,9 @@ export function unvanBul(skor: number, durum: Durum) {
   if (s.kariyer >= 78) return "Adı işiyle anılan biri";
   if (s.arkadaslik >= 78) return "Dostlarıyla anılan biri";
   if (s.saglik >= 80 && skor >= 60) return "Sağlam kalmış bir çınar";
-  if (durum.karakter.kisilikler.includes("hirsli") && skor >= 60)
+  if (etiketEgilimi(durum.karakter, "calisma") > 6 && skor >= 60)
     return "Durmayı hiç öğrenemeyen biri";
-  if (durum.karakter.kisilikler.includes("merhametli") && s.mutluluk >= 60)
+  if (etiketEgilimi(durum.karakter, "yardim") > 6 && s.mutluluk >= 60)
     return "Herkese bir şey bırakan biri";
   if (skor >= 50) return "Sıradan ama gerçek bir hayat";
   if (skor >= 30) return "Bir hayli çalkantılı bir yolculuk";
@@ -466,22 +499,21 @@ export function skorHesapla(durum: Durum) {
 export function hayatHikayesi(durum: Durum, skor: number) {
   const { karakter, bayraklar, iliskiler, statlar, yas } = durum;
   const koken = KOKENLER.find((k) => k.key === karakter.koken)!;
-  const meslek = MESLEKLER.find((m) => m.key === karakter.meslek)!;
-  const kisilikAdlari = karakter.kisilikler.map((k) =>
-    (KISILIKLER.find((x) => x.key === k)?.ad ?? k).toLowerCase(),
-  );
+  const meslekAdi = karakter.meslek.ad;
+  const kisilikAdlari = karakter.kisilikler.map((o) => o.ad.toLocaleLowerCase("tr"));
   const h = hedefDegerlendir(durum);
   const c: string[] = [];
 
   c.push(
-    `${karakter.isim}, ${koken.hikaye} başlayan bir hayatı ${yas} yıl taşıdı; ${kisilikAdlari.join(" ve ")} bir insandı ve bu iki huy neredeyse bütün dönüm noktalarında masadaydı.`,
+    `${karakter.isim}, ${koken.hikaye} başlayan bir hayatı ${yas} yıl taşıdı; ${kisilikAdlari.join(", ")} bir insandı ve bu huylar neredeyse bütün dönüm noktalarında masadaydı.`,
   );
 
+  const meslekBelirsiz = /belirsiz|bilmiyorum|karars/i.test(meslekAdi);
   c.push(
-    karakter.meslek !== "belirsiz"
+    !meslekBelirsiz
       ? statlar.kariyer >= 60
-        ? `İçindeki ${meslek.ad.toLowerCase()} olma isteğini bastırmadı; yaptığı işte adı anıldı, emeği karşılığını buldu.`
-        : `${meslek.ad} olmak istemişti; hayat başka yerlere savurdu ama o eğilim seçimlerinin arasında hep bir yerlerde durdu.`
+        ? `İçindeki ${meslekAdi.toLocaleLowerCase("tr")} olma isteğini bastırmadı; yaptığı işte adı anıldı, emeği karşılığını buldu.`
+        : `${meslekAdi} olmak istemişti; hayat başka yerlere savurdu ama o eğilim seçimlerinin arasında hep bir yerlerde durdu.`
       : "Ne olmak istediğine hiçbir zaman tam karar vermedi ve tuhaf biçimde bu belirsizlik onu hep yeni kapılara götürdü.",
   );
 
