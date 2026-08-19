@@ -107,8 +107,14 @@ KURALLAR
 8. Aktif ilişkiler varsa kişileri İSİMLERİYLE kullan (uydurma yeni isim ekleme).
 9. Verilen "kaçınılacak başlıklar" listesindeki konuları ve başlıkları TEKRARLAMA. Her sahne yeni bir konu olsun.
 10. Türkçe yaz. Melankoli, mizah ve sıcaklık serbest.
-11. ÇALIŞMA ORTAMI: Karakterin bir mesleği varsa kariyer/para sahnelerini o işin geçtiği yerde kur.
-    Hemşireyse hastane koridorunda, tezgâhtarsa dükkânda, şoförse yolda. Mesleğe yabancı bir sahne yazma.
+11. MESLEK EN AZ YAŞ KADAR BELİRLEYİCİ. Sahnelerin yaklaşık yarısı doğrudan oyuncunun İŞİYLE ilgili olmalı:
+    işin gündelik akışı, oradaki insanlar, o işe özgü sorunlar, o işin parası, o işin itibarı.
+    - Mesleğin ADINI sahnenin içinde geç ("... {meslek} olarak ...") — oyuncu ne iş yaptığını okuduğunu hissetsin.
+    - O işe ait somut şeyler kullan: yerler, aletler, roller, belgeler. Genel geçer "iş yerinde bir sorun çıktı"
+      cümlesi kurma; hemşirede tahlil ve nöbet, film üreticisinde bütçe ve set, kasapta tezgâh ve müşteri geçsin.
+    - Oyuncunun yazdığı meslek alışılmadık, tuhaf ya da uydurma olabilir. Yargılama, ciddiye al ve o işin
+      gerçekten nasıl bir gündelik hayatı olurdu diye düşünüp ona göre yaz.
+    - Mesleğe yabancı bir sahne yazma; oyuncu çalışmıyorsa iş sahnesi de kurma.
 12. ZORUNLU SAHNE: "zorunlu": true denirse oyuncunun seçim hakkı YOKTUR. O zaman tek bir seçenek üret,
     metni olan bitmiş bir şey gibi yaz (kaza, haber, kriz, hastalık, işten çıkarma...), seçeneğin "t" alanı "..." olsun
     ve "sonuc" alanında olayın oyuncuya ne yaptığını anlat. Oyuncuyu suçlama, bunlar elinde olmayan şeyler.

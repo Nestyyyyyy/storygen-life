@@ -1975,13 +1975,17 @@ function buyukHarf(metin: string) {
 }
 
 function yuvalariDoldur(metin: string, evre: Evre, isYerleri: string[]) {
-  return buyukHarf(
-    metin.replace(/\{(mekan|zaman|isYeri)\}/g, (_tam, ad: string) => {
-      if (ad === "mekan") return rast(MEKANLAR[evre]);
-      if (ad === "isYeri") return rast(isYerleri.length ? isYerleri : MEKANLAR[evre]);
-      return rast(ZAMANLAR);
-    }),
+  const dolu = metin.replace(/\{(mekan|zaman|isYeri)\}/g, (_tam, ad: string) => {
+    if (ad === "mekan") return rast(MEKANLAR[evre]);
+    if (ad === "isYeri") return rast(isYerleri.length ? isYerleri : MEKANLAR[evre]);
+    return rast(ZAMANLAR);
+  });
+  // Yuvalar cümle ortasında da başında da geçiyor; nokta sonrası büyük harf.
+  const duzeltilmis = dolu.replace(
+    /([.!?]\s+)(\p{Ll})/gu,
+    (_t, ayrac: string, harf: string) => ayrac + buyukHarf(harf),
   );
+  return buyukHarf(duzeltilmis);
 }
 
 /** Bu yaş bandında ve bu modda çıkabilecek kalıplar. */

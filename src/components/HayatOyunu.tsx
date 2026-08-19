@@ -48,7 +48,7 @@ import {
   hayatHikayesi,
   hedefDegerlendir,
   iliskiIsmiUret,
-  kalipId,
+  sahneKalipId,
   metinDoldur,
   olaySec,
   omurHesapla,
@@ -215,6 +215,7 @@ export default function HayatOyunu({
   const [kendiCevapYukleniyor, setKendiCevapYukleniyor] = useState(false);
   const sonKaliplar = useRef<string[]>([]);
   const gecenBasliklar = useRef<string[]>([]);
+  const gecenMetinler = useRef<string[]>([]);
 
   /* Sahne getirme: sağlayıcı varsa (yapay zekâ) ondan, yoksa yerel motordan. */
   const sahneGetir = useCallback(
@@ -237,7 +238,7 @@ export default function HayatOyunu({
       } finally {
         setYukleniyor(false);
       }
-      const yerel = olaySec(d, sonKaliplar.current);
+      const yerel = olaySec(d, sonKaliplar.current, gecenMetinler.current);
       setOlay(yerel);
       setMotor("yerel");
       setYukleniyor(false);
@@ -248,9 +249,10 @@ export default function HayatOyunu({
 
   useEffect(() => {
     if (!olay) return;
-    const kid = kalipId(olay);
+    const kid = sahneKalipId(olay);
     if (kid) sonKaliplar.current = [kid, ...sonKaliplar.current].slice(0, 8);
     gecenBasliklar.current = [olay.baslik, ...gecenBasliklar.current].slice(0, 30);
+    gecenMetinler.current = [olay.metin, ...gecenMetinler.current].slice(0, 80);
   }, [olay]);
 
   /* ---- serbest metin → oyun profili ---- */
@@ -319,6 +321,7 @@ export default function HayatOyunu({
 
     sonKaliplar.current = [];
     gecenBasliklar.current = [];
+    gecenMetinler.current = [];
     setDurum(yeniDurum);
     setGunluk([]);
     setSonuc(null);

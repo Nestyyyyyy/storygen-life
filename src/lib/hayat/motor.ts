@@ -4,6 +4,7 @@
 import { OLAYLAR } from "./olaylar";
 import { kalipId, rastgeleSahne } from "./uretec";
 import { ozellikOrtami } from "./profil";
+import { isKalipId, isSahnesiUret, meslekVarMi } from "./is";
 import {
   HEDEFLER,
   ISIMLER,
@@ -126,6 +127,11 @@ export function yetiskinIcerikAcik(durum: Durum) {
   return durum.mod === "yetiskin18" && durum.yas >= 18;
 }
 
+/** Gerçek zincir olayı: geçmişte bir şey olduğu için açılan olay. */
+export function zincirOlayiMi(olay: Olay) {
+  return !!(olay.gerek?.bayrak?.length || olay.gerek?.iliski);
+}
+
 export function olayUygunMu(olay: Olay, durum: Durum) {
   const evre = evreBul(durum.yas);
   if (!olay.evreler.includes(evre)) return false;
@@ -138,7 +144,7 @@ export function olayUygunMu(olay: Olay, durum: Durum) {
 
 function agirlik(olay: Olay, durum: Durum) {
   let w = olay.agirlik ?? 1;
-  if (olay.gerek) w *= 3; // koşulu tutan zincir olayları öne çıksın
+  if (zincirOlayiMi(olay)) w *= 3; // koşulu tutan zincir olayları öne çıksın
   if (durum.mod === "romantik" && olay.alan === "ask") w *= 3;
   if (durum.mod === "fakir" && olay.alan === "para") w *= 2;
   if (durum.mod === "kaos" && olay.kaosOnly) w *= 3;
@@ -153,14 +159,40 @@ function agirlik(olay: Olay, durum: Durum) {
  * yazılmış sahneler ve prosedürel sahneler karışık gelir. Aynı olay bir
  * hayatta iki kez çıkmaz; üretilen sahnelerde de son kalıplar tekrarlanmaz.
  */
-export function olaySec(durum: Durum, sonKaliplar: string[] = []): Olay {
+/**
+ * Sıradaki olayı seçer. `gorulenMetinler` verilirse aynı hayatta daha önce
+ * okunmuş bir sahne metni bir daha gösterilmez (üretilen sahnelerde aynı
+ * kalıbın aynı yuvalarla iki kez düşmesi ihtimalini de kapatır).
+ */
+export function olaySec(
+  durum: Durum,
+  sonKaliplar: string[] = [],
+  gorulenMetinler: string[] = [],
+): Olay {
+  let secilen = olaySecTek(durum, sonKaliplar);
+  for (let deneme = 0; deneme < 4 && gorulenMetinler.length; deneme++) {
+    if (!gorulenMetinler.includes(metinDoldur(secilen.metin, durum))) break;
+    secilen = olaySecTek(durum, sonKaliplar);
+  }
+  return secilen;
+}
+
+function olaySecTek(durum: Durum, sonKaliplar: string[]): Olay {
   const evre = evreBul(durum.yas);
   const uygun = OLAYLAR.filter((o) => olayUygunMu(o, durum));
-  const zincir = uygun.filter((o) => o.gerek);
+  const zincir = uygun.filter(zincirOlayiMi);
 
   if (zincir.length && Math.random() < 0.7) {
     return tartiliSec(zincir, durum);
   }
+  /* Çalışma çağındaki bir karakterin sahnelerinin önemli kısmı işiyle ilgili
+     olsun; meslek adı ve sözlüğü doğrudan sahnenin içine giriyor. */
+  const calisiyor = durum.yas >= 18 && evre !== "yasli" && meslekVarMi(durum.karakter.meslek);
+  if (calisiyor && Math.random() < 0.5) {
+    const isSahnesi = isSahnesiUret(durum.karakter.meslek, evre, sonKaliplar);
+    if (isSahnesi) return isSahnesi;
+  }
+
   const uretilen = rastgeleSahne(
     evre,
     sonKaliplar,
@@ -583,6 +615,11 @@ export function hayatHikayesi(durum: Durum, skor: number) {
   );
 
   return c.join(" ");
+}
+
+/** Sahnenin kalıp kimliği — hem prosedürel hem iş sahneleri için. */
+export function sahneKalipId(olay: Olay): string | null {
+  return isKalipId(olay) ?? kalipId(olay);
 }
 
 export { kalipId };
