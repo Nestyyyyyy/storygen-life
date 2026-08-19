@@ -1,0 +1,1492 @@
+/* Hayat Simülatörü — oyun arayüzü
+
+   Sahneleri ve önerileri dışarıdan gelen "sağlayıcı" fonksiyonlar üretir.
+   Rota bunlara sunucudaki yapay zekâyı bağlar; sağlayıcı verilmezse oyun
+   tamamen yerel motorla çalışır (çevrimdışı sürüm bunu kullanıyor). */
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Activity,
+  Briefcase,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Coins,
+  Heart,
+  Lightbulb,
+  Loader2,
+  RotateCcw,
+  Smile,
+  Sparkles,
+  Users,
+} from "lucide-react";
+
+import {
+  BASLANGICLAR,
+  CINSIYETLER,
+  EVRE_ADI,
+  HEDEFLER,
+  KISILIKLER,
+  KOKENLER,
+  MESLEKLER,
+  MODES,
+  STAT_ADI,
+  STAT_ANAHTARLARI,
+  evreBul,
+} from "@/lib/hayat/veri";
+import {
+  anlatiKur,
+  clamp,
+  fxTopla,
+  hayatHikayesi,
+  hedefDegerlendir,
+  iliskiIsmiUret,
+  kalipId,
+  metinDoldur,
+  olaySec,
+  omurHesapla,
+  oneriHesapla,
+  paraFmt,
+  secimiHesapla,
+  skorHesapla,
+  unvanBul,
+  yasArtisi,
+} from "@/lib/hayat/motor";
+import type { Durum, Iliski, Olay, Secenek, StatAnahtar, Statlar } from "@/lib/hayat/tipler";
+import type { Oneri } from "@/lib/hayat/motor";
+
+/* ---------- Renkler & Fontlar ---------- */
+const C = {
+  bg1: "#17122a",
+  bg2: "#241a3d",
+  card: "#2b2146",
+  cardEdge: "#3a2e5c",
+  cream: "#ece7f5",
+  muted: "#9a8fb5",
+  gold: "#f5b942",
+  rose: "#f2739d",
+  teal: "#4fd1c5",
+  green: "#6ee7a0",
+  sky: "#7da8ff",
+};
+const serif = "Georgia, 'Times New Roman', serif";
+const sans = "system-ui, -apple-system, sans-serif";
+
+const STAT_GORUNUM: Record<StatAnahtar, { renk: string; Icon: typeof Activity }> = {
+  saglik: { renk: C.green, Icon: Activity },
+  mutluluk: { renk: C.gold, Icon: Smile },
+  ask: { renk: C.rose, Icon: Heart },
+  arkadaslik: { renk: C.teal, Icon: Users },
+  kariyer: { renk: C.sky, Icon: Briefcase },
+};
+
+const ILISKI_EMOJI: Record<string, string> = {
+  sevgili: "💞",
+  es: "💍",
+  arkadas: "🫂",
+  rakip: "⚔️",
+  cocuk: "🧒",
+  kopek: "🐾",
+};
+const ILISKI_RENK: Record<string, string> = {
+  sevgili: C.rose,
+  es: C.rose,
+  arkadas: C.teal,
+  rakip: "#ff9090",
+  cocuk: C.gold,
+  kopek: C.green,
+};
+
+const ADIM_BASLIKLARI = ["Kimlik", "Başlangıç", "Köken", "Eğilim", "Hedef", "Kişilik", "Hayat"];
+const SON_ADIM = ADIM_BASLIKLARI.length - 1;
+
+/* ---------- Sağlayıcılar ---------- */
+export type SahneSaglayici = (girdi: {
+  durum: Durum;
+  sonKaliplar: string[];
+  kacinilanBasliklar: string[];
+}) => Promise<{ olay: Olay; motor: "ai" | "yerel" }>;
+
+export type OneriSaglayici = (girdi: { durum: Durum; olay: Olay }) => Promise<Oneri>;
+
+type Props = {
+  sahneSaglayici?: SahneSaglayici;
+  oneriSaglayici?: OneriSaglayici;
+};
+
+type GunlukKayit = {
+  yas: number;
+  emoji: string;
+  baslik: string;
+  secim: string;
+  metin: string;
+  onemli: boolean;
+};
+
+type SonucGorunum = {
+  metin: string;
+  fx: Partial<Statlar>;
+  dpara: number;
+  emoji: string;
+  basarisiz: boolean;
+};
+
+export default function HayatOyunu({ sahneSaglayici, oneriSaglayici }: Props) {
+  /* ---- ekran ---- */
+  const [ekran, setEkran] = useState<"olustur" | "oyun" | "bitis">("olustur");
+  const [adim, setAdim] = useState(0);
+
+  /* ---- karakter oluşturma ---- */
+  const [isim, setIsim] = useState("");
+  const [cinsiyet, setCinsiyet] = useState<"kadin" | "erkek" | "belirsiz">("belirsiz");
+  const [baslangic, setBaslangic] = useState<"bebek" | "cocuk" | "genc">("cocuk");
+  const [koken, setKoken] = useState<"varlikli" | "orta" | "zor" | "kimsesiz">("orta");
+  const [meslek, setMeslek] = useState<Durum["karakter"]["meslek"]>("belirsiz");
+  const [hedef, setHedef] = useState<Durum["karakter"]["hedef"]>("huzur");
+  const [kisilikler, setKisilikler] = useState<string[]>([]);
+
+  /* ---- oyun ---- */
+  const [durum, setDurum] = useState<Durum | null>(null);
+  const [olay, setOlay] = useState<Olay | null>(null);
+  const [motor, setMotor] = useState<"ai" | "yerel">("yerel");
+  const [sonuc, setSonuc] = useState<SonucGorunum | null>(null);
+  const [gunluk, setGunluk] = useState<GunlukKayit[]>([]);
+  const [olumSebep, setOlumSebep] = useState("");
+  const [yukleniyor, setYukleniyor] = useState(false);
+  const [oneri, setOneri] = useState<Oneri | null>(null);
+  const [oneriYukleniyor, setOneriYukleniyor] = useState(false);
+  const sonKaliplar = useRef<string[]>([]);
+  const gecenBasliklar = useRef<string[]>([]);
+
+  /* Sahne getirme: sağlayıcı varsa (yapay zekâ) ondan, yoksa yerel motordan. */
+  const sahneGetir = useCallback(
+    async (d: Durum) => {
+      setYukleniyor(true);
+      setOneri(null);
+      try {
+        if (sahneSaglayici) {
+          const yanit = await sahneSaglayici({
+            durum: d,
+            sonKaliplar: sonKaliplar.current,
+            kacinilanBasliklar: gecenBasliklar.current,
+          });
+          setOlay(yanit.olay);
+          setMotor(yanit.motor);
+          return yanit.olay;
+        }
+      } catch (err) {
+        console.error("[sahneGetir]", err);
+      } finally {
+        setYukleniyor(false);
+      }
+      const yerel = olaySec(d, sonKaliplar.current);
+      setOlay(yerel);
+      setMotor("yerel");
+      setYukleniyor(false);
+      return yerel;
+    },
+    [sahneSaglayici],
+  );
+
+  useEffect(() => {
+    if (!olay) return;
+    const kid = kalipId(olay);
+    if (kid) sonKaliplar.current = [kid, ...sonKaliplar.current].slice(0, 8);
+    gecenBasliklar.current = [olay.baslik, ...gecenBasliklar.current].slice(0, 30);
+  }, [olay]);
+
+  /* ---- oyunu başlat ---- */
+  function baslat(mod: (typeof MODES)[number]) {
+    const sb = BASLANGICLAR.find((b) => b.key === baslangic)!;
+    const sk = KOKENLER.find((k) => k.key === koken)!;
+    const sm = MESLEKLER.find((m) => m.key === meslek)!;
+    const secilenKisilikler = kisilikler.length === 2 ? kisilikler : ["cesur", "durust"];
+
+    const statlar = { ...mod.start } as Statlar;
+    [sb.fx, sk.fx, sm.fx].forEach((fx) => fxTopla(statlar, fx));
+    secilenKisilikler.forEach((k) => fxTopla(statlar, KISILIKLER.find((x) => x.key === k)?.fx));
+    STAT_ANAHTARLARI.forEach((k) => (statlar[k] = clamp(statlar[k])));
+
+    const yeniDurum: Durum = {
+      yas: sb.yas,
+      omur: Math.max(sb.yas + 20, omurHesapla(koken, meslek)),
+      statlar,
+      para: Math.round(mod.para * sk.paraCarpan + sk.paraEk),
+      mod: mod.key,
+      karakter: {
+        isim: isim.trim() || "Sen",
+        cinsiyet,
+        baslangic,
+        koken,
+        meslek,
+        hedef,
+        kisilikler: secilenKisilikler,
+      },
+      bayraklar: [],
+      iliskiler: [],
+      gorulen: [],
+      gecmis: [],
+    };
+
+    sonKaliplar.current = [];
+    gecenBasliklar.current = [];
+    setDurum(yeniDurum);
+    setGunluk([]);
+    setSonuc(null);
+    setOlumSebep("");
+    setEkran("oyun");
+    void sahneGetir(yeniDurum);
+  }
+
+  /* ---- seçim ---- */
+  function sec(secenek: Secenek) {
+    if (!durum || !olay) return;
+    const hesap = secimiHesapla(secenek, durum);
+
+    let iliskiler: Iliski[] = durum.iliskiler;
+    if (secenek.iliskiYukselt) {
+      iliskiler = iliskiler.map((i) =>
+        i.tur === secenek.iliskiYukselt!.eski && i.aktif
+          ? { ...i, tur: secenek.iliskiYukselt!.yeni }
+          : i,
+      );
+    }
+    if (secenek.iliskiBitir) {
+      iliskiler = iliskiler.map((i) =>
+        i.tur === secenek.iliskiBitir && i.aktif ? { ...i, aktif: false, bitis: durum.yas } : i,
+      );
+    }
+    if (secenek.iliski) {
+      iliskiler = [
+        ...iliskiler,
+        {
+          id: `${olay.id}-${durum.yas}`,
+          ad: iliskiIsmiUret(
+            secenek.iliski.tur,
+            durum.karakter.cinsiyet,
+            iliskiler.map((i) => i.ad),
+          ),
+          tur: secenek.iliski.tur,
+          ilkAsk: !!secenek.iliski.ilkAsk,
+          baslangic: durum.yas,
+          aktif: true,
+        },
+      ];
+    }
+    const bayraklar = secenek.bayrak
+      ? Array.from(new Set([...durum.bayraklar, ...secenek.bayrak]))
+      : durum.bayraklar;
+
+    const statlar = { ...durum.statlar };
+    (Object.keys(hesap.fx) as StatAnahtar[]).forEach((k) => {
+      statlar[k] = clamp(statlar[k] + (hesap.fx[k] ?? 0));
+    });
+
+    const yeniDurum: Durum = {
+      ...durum,
+      statlar,
+      para: durum.para + hesap.dpara,
+      iliskiler,
+      bayraklar,
+      gorulen: durum.gorulen.includes(olay.id) ? durum.gorulen : [...durum.gorulen, olay.id],
+      gecmis: [...durum.gecmis, { yas: durum.yas, baslik: olay.baslik, secim: secenek.t }].slice(
+        -40,
+      ),
+    };
+
+    const metin = anlatiKur(hesap, yeniDurum, statlar);
+    setDurum(yeniDurum);
+    setSonuc({
+      metin,
+      fx: hesap.fx,
+      dpara: hesap.dpara,
+      emoji: olay.emoji,
+      basarisiz: hesap.basarisiz,
+    });
+    setOneri(null);
+    setGunluk((g) => [
+      {
+        yas: durum.yas,
+        emoji: olay.emoji,
+        baslik: olay.baslik,
+        secim: secenek.t,
+        metin,
+        onemli: !!secenek.onemli,
+      },
+      ...g,
+    ]);
+  }
+
+  /* ---- devam ---- */
+  function devam() {
+    if (!durum) return;
+    if (durum.statlar.saglik <= 0) return bitir("Sağlığın tükendi.");
+    if (durum.statlar.saglik <= 12 && Math.random() < 0.25)
+      return bitir("Bedenin daha fazla dayanamadı.");
+
+    const yeniYas = durum.yas + yasArtisi(durum.yas);
+    if (yeniYas >= durum.omur) return bitir("Yaşlılığın huzuruyla gözlerini kapadın.");
+
+    const yeniDurum = { ...durum, yas: yeniYas };
+    setDurum(yeniDurum);
+    setSonuc(null);
+    void sahneGetir(yeniDurum);
+  }
+
+  function bitir(sebep: string) {
+    setOlumSebep(sebep);
+    setEkran("bitis");
+  }
+
+  /* ---- öneri ---- */
+  async function oneriIste() {
+    if (!durum || !olay || oneriYukleniyor) return;
+    setOneriYukleniyor(true);
+    try {
+      if (oneriSaglayici) {
+        setOneri(await oneriSaglayici({ durum, olay }));
+        return;
+      }
+      setOneri(oneriHesapla(olay, durum));
+    } catch (err) {
+      console.error("[oneriIste]", err);
+      setOneri(oneriHesapla(olay, durum));
+    } finally {
+      setOneriYukleniyor(false);
+    }
+  }
+
+  function yenidenBasla() {
+    setEkran("olustur");
+    setAdim(0);
+    setKisilikler([]);
+    setDurum(null);
+    setOlay(null);
+  }
+
+  function kisilikSec(key: string) {
+    setKisilikler((m) =>
+      m.includes(key) ? m.filter((k) => k !== key) : m.length >= 2 ? [m[1], key] : [...m, key],
+    );
+  }
+
+  /* ================= KARAKTER OLUŞTURMA ================= */
+  if (ekran === "olustur") {
+    const ileriAktif = adim !== 5 || kisilikler.length === 2;
+    const sb = BASLANGICLAR.find((b) => b.key === baslangic)!;
+    const sk = KOKENLER.find((k) => k.key === koken)!;
+    const sm = MESLEKLER.find((m) => m.key === meslek)!;
+    const sh = HEDEFLER.find((h) => h.key === hedef)!;
+
+    return (
+      <Shell>
+        {adim === 0 && (
+          <div style={{ textAlign: "center", paddingTop: 4, marginBottom: 18 }}>
+            <div
+              style={{ fontSize: 13, letterSpacing: 3, color: C.muted, textTransform: "uppercase" }}
+            >
+              bir hayat, sayısız yol
+            </div>
+            <h1
+              style={{
+                fontFamily: serif,
+                fontSize: 40,
+                margin: "6px 0 0",
+                color: C.cream,
+                fontWeight: 700,
+                lineHeight: 1.05,
+              }}
+            >
+              Hayat
+              <br />
+              <span style={{ color: C.gold, fontStyle: "italic" }}>Simülatörü</span>
+            </h1>
+          </div>
+        )}
+
+        <AdimGostergesi adim={adim} />
+
+        {adim === 0 && (
+          <div>
+            <label style={etiketStyle}>Adın</label>
+            <input
+              value={isim}
+              onChange={(e) => setIsim(e.target.value)}
+              placeholder="Adını yaz..."
+              maxLength={16}
+              style={inputStyle}
+            />
+            <label style={{ ...etiketStyle, marginTop: 18 }}>Cinsiyet</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {CINSIYETLER.map((c) => (
+                <Pill
+                  key={c.key}
+                  secili={cinsiyet === c.key}
+                  onClick={() => setCinsiyet(c.key as typeof cinsiyet)}
+                >
+                  {c.emoji} {c.ad}
+                </Pill>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {adim === 1 && (
+          <StepBlok
+            baslik="Hayata nereden başlıyorsun?"
+            alt="Seçtiğin yaş, göreceğin olayları ve ömrün uzunluğunu belirler."
+          >
+            {BASLANGICLAR.map((b) => (
+              <SecimKarti
+                key={b.key}
+                emoji={b.emoji}
+                ad={`${b.ad} (${b.yas})`}
+                aciklama={b.aciklama}
+                secili={baslangic === b.key}
+                onClick={() => setBaslangic(b.key as typeof baslangic)}
+              />
+            ))}
+          </StepBlok>
+        )}
+
+        {adim === 2 && (
+          <StepBlok
+            baslik="Nasıl bir evde açtın gözünü?"
+            alt="Başlangıç paranı ve statlarını etkiler."
+          >
+            {KOKENLER.map((k) => (
+              <SecimKarti
+                key={k.key}
+                emoji={k.emoji}
+                ad={k.ad}
+                aciklama={k.aciklama}
+                secili={koken === k.key}
+                onClick={() => setKoken(k.key as typeof koken)}
+              />
+            ))}
+          </StepBlok>
+        )}
+
+        {adim === 3 && (
+          <StepBlok
+            baslik="İçinden gelen ne?"
+            alt="Kariyer ve para olaylarında sana bonus verir, önerileri de değiştirir."
+          >
+            {MESLEKLER.map((m) => (
+              <SecimKarti
+                key={m.key}
+                emoji={m.emoji}
+                ad={m.ad}
+                aciklama={m.aciklama}
+                secili={meslek === m.key}
+                onClick={() => setMeslek(m.key as typeof meslek)}
+              />
+            ))}
+          </StepBlok>
+        )}
+
+        {adim === 4 && (
+          <StepBlok
+            baslik="Bu hayattan ne istiyorsun?"
+            alt="Hedefin hem bitiş puanını hem de sana verilen önerileri belirler."
+          >
+            {HEDEFLER.map((h) => (
+              <SecimKarti
+                key={h.key}
+                emoji={h.emoji}
+                ad={h.ad}
+                aciklama={h.aciklama}
+                secili={hedef === h.key}
+                onClick={() => setHedef(h.key as typeof hedef)}
+              />
+            ))}
+          </StepBlok>
+        )}
+
+        {adim === 5 && (
+          <StepBlok
+            baslik="Sen nasıl birisin?"
+            alt={`İki özellik seç. (${kisilikler.length}/2) Seçimlerinin sonuçlarını ömür boyu değiştirirler.`}
+          >
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {KISILIKLER.map((k) => (
+                <Pill
+                  key={k.key}
+                  secili={kisilikler.includes(k.key)}
+                  onClick={() => kisilikSec(k.key)}
+                >
+                  {k.emoji} {k.ad}
+                </Pill>
+              ))}
+            </div>
+            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
+              {kisilikler.map((key) => {
+                const k = KISILIKLER.find((x) => x.key === key)!;
+                return (
+                  <div key={key} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.4 }}>
+                    <b style={{ color: C.cream }}>{k.ad}:</b> {k.aciklama}
+                  </div>
+                );
+              })}
+            </div>
+          </StepBlok>
+        )}
+
+        {adim === 6 && (
+          <div>
+            <div style={{ ...cardStyle, marginBottom: 14, padding: "14px 16px" }}>
+              <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 700, color: C.cream }}>
+                {isim.trim() || "Sen"}
+              </div>
+              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6, marginTop: 4 }}>
+                {CINSIYETLER.find((c) => c.key === cinsiyet)!.ad} · {sb.ad} ({sb.yas} yaş)
+                <br />
+                {sk.emoji} {sk.ad} · {sm.emoji} {sm.ad}
+                <br />
+                {sh.emoji} Hedef: {sh.ad}
+                <br />
+                {kisilikler
+                  .map((k) => {
+                    const x = KISILIKLER.find((y) => y.key === k)!;
+                    return `${x.emoji} ${x.ad}`;
+                  })
+                  .join(" · ")}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>
+              Bir hayat seç ve başla
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {MODES.map((m) => (
+                <button key={m.key} onClick={() => baslat(m)} style={modKartStyle}>
+                  <span style={{ fontSize: 30 }}>{m.emoji}</span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ fontFamily: serif, fontSize: 18, fontWeight: 700 }}>{m.ad}</span>
+                    <span
+                      style={{ display: "block", fontSize: 12.5, color: C.muted, marginTop: 2 }}
+                    >
+                      {m.aciklama}
+                    </span>
+                  </span>
+                  <ChevronRight size={18} color={C.muted} />
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 10, marginTop: 22, alignItems: "center" }}>
+          {adim > 0 && (
+            <button
+              onClick={() => setAdim(adim - 1)}
+              style={{
+                ...secenekStyle,
+                width: "auto",
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                color: C.muted,
+                padding: "12px 14px",
+              }}
+            >
+              <ChevronLeft size={16} /> Geri
+            </button>
+          )}
+          {adim < SON_ADIM && (
+            <button
+              onClick={() => ileriAktif && setAdim(adim + 1)}
+              disabled={!ileriAktif}
+              style={{
+                ...secenekStyle,
+                flex: 1,
+                background: ileriAktif ? C.gold : "#00000022",
+                color: ileriAktif ? "#2b1d00" : C.muted,
+                borderColor: ileriAktif ? C.gold : C.cardEdge,
+                fontWeight: 700,
+                textAlign: "center",
+                cursor: ileriAktif ? "pointer" : "default",
+              }}
+            >
+              {adim === 5 && !ileriAktif ? "İki özellik seç" : "Devam →"}
+            </button>
+          )}
+        </div>
+      </Shell>
+    );
+  }
+
+  /* ================= OYUN ================= */
+  if (ekran === "oyun" && durum) {
+    const aktifIliskiler = durum.iliskiler.filter((i) => i.aktif);
+    const hedefBilgi = HEDEFLER.find((h) => h.key === durum.karakter.hedef)!;
+    const ilerleme = Math.min(100, (durum.yas / durum.omur) * 100);
+
+    return (
+      <Shell>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            marginBottom: 8,
+          }}
+        >
+          <div>
+            <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 700, color: C.cream }}>
+              {durum.karakter.isim}
+            </div>
+            <div style={{ fontSize: 12.5, color: C.muted }}>{EVRE_ADI[evreBul(durum.yas)]}</div>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <div
+              style={{
+                fontFamily: serif,
+                fontSize: 30,
+                fontWeight: 700,
+                color: C.gold,
+                lineHeight: 1,
+              }}
+            >
+              {durum.yas}
+            </div>
+            <div style={{ fontSize: 11, color: C.muted }}>yaşında</div>
+          </div>
+        </div>
+
+        {/* ömür çubuğu */}
+        <div
+          style={{
+            height: 3,
+            borderRadius: 3,
+            background: "#00000033",
+            overflow: "hidden",
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              width: `${ilerleme}%`,
+              height: "100%",
+              background: C.cardEdge,
+              transition: "width .5s ease",
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          {durum.karakter.kisilikler.map((k) => {
+            const x = KISILIKLER.find((y) => y.key === k)!;
+            return (
+              <MiniRozet key={k}>
+                {x.emoji} {x.ad}
+              </MiniRozet>
+            );
+          })}
+          {durum.karakter.meslek !== "belirsiz" && (
+            <MiniRozet>
+              {MESLEKLER.find((m) => m.key === durum.karakter.meslek)!.emoji}{" "}
+              {MESLEKLER.find((m) => m.key === durum.karakter.meslek)!.ad}
+            </MiniRozet>
+          )}
+          <MiniRozet renk={C.gold}>
+            {hedefBilgi.emoji} {hedefBilgi.ad}
+          </MiniRozet>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
+          <Coins size={15} color={C.gold} />
+          <span
+            style={{ fontSize: 14, fontWeight: 600, color: durum.para < 0 ? "#ff8080" : C.cream }}
+          >
+            {paraFmt(durum.para)}
+          </span>
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+          {STAT_ANAHTARLARI.map((k) => (
+            <StatBar
+              key={k}
+              label={STAT_ADI[k]}
+              value={durum.statlar[k]}
+              renk={STAT_GORUNUM[k].renk}
+              Icon={STAT_GORUNUM[k].Icon}
+            />
+          ))}
+        </div>
+
+        {aktifIliskiler.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
+            {aktifIliskiler.map((i) => (
+              <MiniRozet key={i.id} renk={ILISKI_RENK[i.tur]}>
+                {ILISKI_EMOJI[i.tur]} {i.ad}
+                {durum.yas - i.baslangic > 0 ? ` · ${durum.yas - i.baslangic} yıl` : ""}
+              </MiniRozet>
+            ))}
+          </div>
+        )}
+
+        {yukleniyor && !sonuc ? (
+          <div
+            style={{ ...cardStyle, display: "flex", alignItems: "center", gap: 10, color: C.muted }}
+          >
+            <Loader2 size={18} color={C.gold} style={{ animation: "hs-spin 1s linear infinite" }} />
+            <span style={{ fontSize: 14 }}>Hayatın bir sonraki sahnesi yazılıyor...</span>
+          </div>
+        ) : !sonuc && olay ? (
+          <div style={cardStyle}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "flex-start",
+                justifyContent: "space-between",
+                gap: 10,
+              }}
+            >
+              <div style={{ fontSize: 34, marginBottom: 6 }}>{olay.emoji}</div>
+              {motor === "ai" && (
+                <span
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 10.5,
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                    color: C.sky,
+                  }}
+                >
+                  <Sparkles size={12} /> yapay zekâ
+                </span>
+              )}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                color: C.muted,
+                marginBottom: 8,
+              }}
+            >
+              {olay.baslik}
+            </div>
+            <p
+              style={{
+                fontFamily: serif,
+                fontSize: 18,
+                lineHeight: 1.5,
+                color: C.cream,
+                margin: "0 0 16px",
+              }}
+            >
+              {metinDoldur(olay.metin, durum)}
+            </p>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+              {olay.secenekler.map((sc, i) => {
+                const onerilen = oneri?.indeks === i;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => sec(sc)}
+                    style={{
+                      ...secenekStyle,
+                      border: `1px solid ${onerilen ? C.gold : C.cardEdge}`,
+                      background: onerilen ? "#f5b94214" : "#00000022",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <span style={{ flex: 1 }}>
+                      {sc.t}
+                      {sc.riskli ? (
+                        <span style={{ color: C.gold, fontSize: 12 }}> · riskli</span>
+                      ) : null}
+                    </span>
+                    {onerilen && (
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 3,
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          letterSpacing: 1,
+                          textTransform: "uppercase",
+                          color: C.gold,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        <Lightbulb size={12} /> önerilen
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Öner düğmesi ve gerekçesi */}
+            {oneri ? (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: "10px 12px",
+                  borderRadius: 12,
+                  background: "#f5b9420f",
+                  border: `1px solid ${C.gold}33`,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: 10.5,
+                    letterSpacing: 1.5,
+                    textTransform: "uppercase",
+                    color: C.gold,
+                    marginBottom: 4,
+                  }}
+                >
+                  <Lightbulb size={12} /> akıl hocası {oneri.kaynak === "ai" ? "· yapay zekâ" : ""}
+                </div>
+                <div style={{ fontSize: 13, color: C.cream, lineHeight: 1.5 }}>{oneri.gerekce}</div>
+              </div>
+            ) : (
+              <button
+                onClick={oneriIste}
+                disabled={oneriYukleniyor}
+                style={{
+                  ...secenekStyle,
+                  marginTop: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 7,
+                  color: C.gold,
+                  background: "transparent",
+                  borderStyle: "dashed",
+                  fontSize: 13.5,
+                }}
+              >
+                {oneriYukleniyor ? (
+                  <Loader2 size={15} style={{ animation: "hs-spin 1s linear infinite" }} />
+                ) : (
+                  <Lightbulb size={15} />
+                )}
+                {oneriYukleniyor ? "Düşünüyor..." : "Öner"}
+              </button>
+            )}
+          </div>
+        ) : sonuc ? (
+          <div style={cardStyle}>
+            <div style={{ fontSize: 34, marginBottom: 10 }}>
+              {sonuc.basarisiz ? "💥" : sonuc.emoji}
+            </div>
+            <p
+              style={{
+                fontFamily: serif,
+                fontSize: 17,
+                lineHeight: 1.62,
+                color: C.cream,
+                margin: "0 0 16px",
+              }}
+            >
+              {sonuc.metin}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 18 }}>
+              {STAT_ANAHTARLARI.filter((k) => (sonuc.fx[k] ?? 0) !== 0).map((k) => (
+                <Chip key={k} label={STAT_ADI[k]} delta={sonuc.fx[k]!} />
+              ))}
+              {sonuc.dpara !== 0 && <Chip label="Para" delta={sonuc.dpara} para />}
+            </div>
+            <button
+              onClick={devam}
+              style={{
+                ...secenekStyle,
+                background: C.gold,
+                color: "#2b1d00",
+                fontWeight: 700,
+                borderColor: C.gold,
+                textAlign: "center",
+              }}
+            >
+              Devam et →
+            </button>
+          </div>
+        ) : null}
+      </Shell>
+    );
+  }
+
+  /* ================= BİTİŞ ================= */
+  if (ekran === "bitis" && durum) {
+    const skor = skorHesapla(durum);
+    const unvan = unvanBul(skor, durum);
+    const h = hedefDegerlendir(durum);
+    const sirali = [...STAT_ANAHTARLARI].sort((a, b) => durum.statlar[b] - durum.statlar[a]);
+    const enYuksek = sirali[0];
+    const enDusuk = sirali[sirali.length - 1];
+    const romantik = durum.iliskiler.filter((i) => i.tur === "sevgili" || i.tur === "es");
+    const arkadaslar = durum.iliskiler.filter((i) => i.tur === "arkadas");
+    const rakipler = durum.iliskiler.filter((i) => i.tur === "rakip");
+    const onemliAnlar = gunluk
+      .filter((g) => g.onemli)
+      .slice()
+      .reverse();
+    const hikaye = hayatHikayesi(durum, skor);
+
+    return (
+      <Shell>
+        <div style={{ textAlign: "center", paddingTop: 6, marginBottom: 18 }}>
+          <div style={{ fontSize: 44, marginBottom: 4 }}>🕯️</div>
+          <div
+            style={{ fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: C.muted }}
+          >
+            hayat sona erdi
+          </div>
+          <h1 style={{ fontFamily: serif, fontSize: 30, color: C.cream, margin: "6px 0 2px" }}>
+            {durum.karakter.isim}
+          </h1>
+          <div style={{ fontSize: 14, color: C.muted }}>
+            {durum.yas} yıl yaşadı · {olumSebep}
+          </div>
+        </div>
+
+        <div style={{ ...cardStyle, textAlign: "center", marginBottom: 14 }}>
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              color: C.muted,
+              marginBottom: 4,
+            }}
+          >
+            hayat puanı
+          </div>
+          <div
+            style={{
+              fontFamily: serif,
+              fontSize: 52,
+              fontWeight: 700,
+              color: C.gold,
+              lineHeight: 1,
+            }}
+          >
+            {skor}
+          </div>
+          <div
+            style={{
+              fontFamily: serif,
+              fontStyle: "italic",
+              fontSize: 18,
+              color: C.cream,
+              marginTop: 6,
+            }}
+          >
+            “{unvan}”
+          </div>
+        </div>
+
+        {/* hedef sonucu */}
+        <div style={{ ...cardStyle, marginBottom: 14, padding: "16px 18px" }}>
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              color: C.muted,
+              marginBottom: 8,
+            }}
+          >
+            hayat hedefi
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+            <span style={{ fontSize: 22 }}>{h.hedef.emoji}</span>
+            <span style={{ fontFamily: serif, fontSize: 17, color: C.cream, flex: 1 }}>
+              {h.hedef.ad}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: h.basarili ? C.green : C.muted }}>
+              %{Math.round(h.oran * 100)}
+            </span>
+          </div>
+          <div style={{ height: 6, borderRadius: 4, background: "#00000033", overflow: "hidden" }}>
+            <div
+              style={{
+                width: `${Math.round(h.oran * 100)}%`,
+                height: "100%",
+                background: h.basarili ? C.green : C.gold,
+                borderRadius: 4,
+              }}
+            />
+          </div>
+          <div style={{ fontSize: 12.5, color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+            {h.metin}
+          </div>
+        </div>
+
+        <div style={{ ...cardStyle, marginBottom: 14 }}>
+          <div
+            style={{
+              fontSize: 12,
+              letterSpacing: 2,
+              textTransform: "uppercase",
+              color: C.muted,
+              marginBottom: 8,
+            }}
+          >
+            hayat hikayesi
+          </div>
+          <p
+            style={{ fontFamily: serif, fontSize: 16, lineHeight: 1.65, color: C.cream, margin: 0 }}
+          >
+            {hikaye}
+          </p>
+        </div>
+
+        <div style={{ ...cardStyle, marginBottom: 14, padding: "16px 18px" }}>
+          <KunyeSatir
+            etiket="En güçlü yanı"
+            deger={`${STAT_ADI[enYuksek]} (${durum.statlar[enYuksek]})`}
+            renk={STAT_GORUNUM[enYuksek].renk}
+          />
+          <KunyeSatir
+            etiket="En zayıf yanı"
+            deger={`${STAT_ADI[enDusuk]} (${durum.statlar[enDusuk]})`}
+            renk={STAT_GORUNUM[enDusuk].renk}
+          />
+          <KunyeSatir
+            etiket="Aşk hayatı"
+            deger={romantik.length ? `${romantik.length} ciddi ilişki` : "hiç yaşanmadı"}
+          />
+          <KunyeSatir
+            etiket="Yol arkadaşları"
+            deger={`${arkadaslar.length} dost · ${rakipler.length} rakip`}
+          />
+          <KunyeSatir etiket="Yaşanan olay" deger={`${gunluk.length} sahne`} />
+          <KunyeSatir
+            etiket="Geriye kalan"
+            deger={paraFmt(durum.para)}
+            renk={durum.para < 0 ? "#ff8080" : C.gold}
+          />
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
+          {STAT_ANAHTARLARI.map((k) => (
+            <StatBar
+              key={k}
+              label={STAT_ADI[k]}
+              value={durum.statlar[k]}
+              renk={STAT_GORUNUM[k].renk}
+              Icon={STAT_GORUNUM[k].Icon}
+            />
+          ))}
+        </div>
+
+        {onemliAnlar.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 12,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                color: C.muted,
+                marginBottom: 10,
+              }}
+            >
+              dönüm noktaları
+            </div>
+            <div style={{ display: "flex", flexDirection: "column" }}>
+              {onemliAnlar.map((g, i) => (
+                <div key={i} style={{ display: "flex", gap: 10 }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <span style={{ fontSize: 15 }}>{g.emoji}</span>
+                    {i < onemliAnlar.length - 1 && (
+                      <span style={{ flex: 1, width: 1, background: C.cardEdge, marginTop: 2 }} />
+                    )}
+                  </div>
+                  <div style={{ paddingBottom: 12 }}>
+                    <div style={{ fontSize: 12.5, color: C.gold, fontWeight: 600 }}>
+                      {g.yas} yaş · {g.baslik}
+                    </div>
+                    <div style={{ fontSize: 12.5, color: C.cream, marginTop: 1 }}>{g.secim}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {gunluk.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                fontSize: 12,
+                letterSpacing: 2,
+                textTransform: "uppercase",
+                color: C.muted,
+                marginBottom: 8,
+              }}
+            >
+              hayatından kesitler
+            </div>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                maxHeight: 240,
+                overflowY: "auto",
+              }}
+            >
+              {gunluk.slice(0, 12).map((g, i) => (
+                <div
+                  key={i}
+                  style={{
+                    display: "flex",
+                    gap: 8,
+                    fontSize: 12.5,
+                    color: C.muted,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <span>{g.emoji}</span>
+                  <span>
+                    <b style={{ color: C.cream }}>{g.yas}:</b> {g.metin}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={yenidenBasla}
+          style={{
+            ...secenekStyle,
+            background: C.gold,
+            color: "#2b1d00",
+            fontWeight: 700,
+            borderColor: C.gold,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
+          <RotateCcw size={17} /> Yeni bir hayat
+        </button>
+      </Shell>
+    );
+  }
+
+  return null;
+}
+
+/* =====================================================================
+   KÜÇÜK BİLEŞENLER
+===================================================================== */
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        background: `linear-gradient(160deg, ${C.bg1}, ${C.bg2})`,
+        fontFamily: sans,
+        display: "flex",
+        justifyContent: "center",
+      }}
+    >
+      <style>{"@keyframes hs-spin{to{transform:rotate(360deg)}}"}</style>
+      <div
+        style={{ width: "100%", maxWidth: 440, padding: "26px 20px 40px", boxSizing: "border-box" }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function AdimGostergesi({ adim }: { adim: number }) {
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", gap: 5, marginBottom: 7 }}>
+        {ADIM_BASLIKLARI.map((_, i) => (
+          <span
+            key={i}
+            style={{
+              flex: 1,
+              height: 3,
+              borderRadius: 3,
+              background: i <= adim ? C.gold : C.cardEdge,
+              transition: "background .3s",
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: C.muted }}>
+        {adim + 1}/{ADIM_BASLIKLARI.length} · {ADIM_BASLIKLARI[adim]}
+      </div>
+    </div>
+  );
+}
+
+function StepBlok({
+  baslik,
+  alt,
+  children,
+}: {
+  baslik: string;
+  alt: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <h2
+        style={{
+          fontFamily: serif,
+          fontSize: 23,
+          color: C.cream,
+          margin: "0 0 4px",
+          fontWeight: 700,
+        }}
+      >
+        {baslik}
+      </h2>
+      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14, lineHeight: 1.45 }}>
+        {alt}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>{children}</div>
+    </div>
+  );
+}
+
+function SecimKarti({
+  emoji,
+  ad,
+  aciklama,
+  secili,
+  onClick,
+}: {
+  emoji: string;
+  ad: string;
+  aciklama: string;
+  secili: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 13,
+        textAlign: "left",
+        padding: "13px 15px",
+        borderRadius: 16,
+        cursor: "pointer",
+        background: secili ? "#f5b94214" : C.card,
+        border: `1px solid ${secili ? C.gold : C.cardEdge}`,
+        color: C.cream,
+        transition: "border-color .15s, background .15s",
+      }}
+    >
+      <span style={{ fontSize: 25 }}>{emoji}</span>
+      <span style={{ flex: 1 }}>
+        <span style={{ fontFamily: serif, fontSize: 17, fontWeight: 700 }}>{ad}</span>
+        <span
+          style={{
+            display: "block",
+            fontSize: 12.5,
+            color: C.muted,
+            marginTop: 2,
+            lineHeight: 1.4,
+          }}
+        >
+          {aciklama}
+        </span>
+      </span>
+      {secili && <Check size={18} color={C.gold} />}
+    </button>
+  );
+}
+
+function Pill({
+  children,
+  secili,
+  onClick,
+}: {
+  children: React.ReactNode;
+  secili: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "9px 14px",
+        borderRadius: 20,
+        cursor: "pointer",
+        fontSize: 13.5,
+        fontFamily: sans,
+        background: secili ? C.gold : "#00000022",
+        color: secili ? "#2b1d00" : C.cream,
+        border: `1px solid ${secili ? C.gold : C.cardEdge}`,
+        fontWeight: secili ? 700 : 500,
+        transition: "background .15s",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function MiniRozet({ children, renk }: { children: React.ReactNode; renk?: string }) {
+  return (
+    <span
+      style={{
+        fontSize: 11.5,
+        padding: "4px 9px",
+        borderRadius: 20,
+        color: renk ?? C.muted,
+        background: "#00000026",
+        border: `1px solid ${C.cardEdge}`,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function KunyeSatir({ etiket, deger, renk }: { etiket: string; deger: string; renk?: string }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "baseline",
+        gap: 12,
+        padding: "5px 0",
+      }}
+    >
+      <span style={{ fontSize: 12.5, color: C.muted }}>{etiket}</span>
+      <span style={{ fontSize: 13.5, fontWeight: 600, color: renk ?? C.cream, textAlign: "right" }}>
+        {deger}
+      </span>
+    </div>
+  );
+}
+
+function StatBar({
+  label,
+  value,
+  renk,
+  Icon,
+}: {
+  label: string;
+  value: number;
+  renk: string;
+  Icon: typeof Activity;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <Icon size={16} color={renk} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
+          <span style={{ fontSize: 12, color: C.cream }}>{label}</span>
+          <span style={{ fontSize: 11, color: C.muted }}>{value}</span>
+        </div>
+        <div style={{ height: 6, borderRadius: 4, background: "#00000033", overflow: "hidden" }}>
+          <div
+            style={{
+              width: `${value}%`,
+              height: "100%",
+              background: renk,
+              borderRadius: 4,
+              transition: "width .5s ease",
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Chip({ label, delta, para }: { label: string; delta: number; para?: boolean }) {
+  const pos = delta >= 0;
+  const txt = para ? (pos ? "+" : "") + paraFmt(delta) : (pos ? "+" : "") + delta + " " + label;
+  return (
+    <span
+      style={{
+        fontSize: 12,
+        fontWeight: 600,
+        padding: "4px 10px",
+        borderRadius: 20,
+        color: pos ? C.green : "#ff9090",
+        background: pos ? "#6ee7a022" : "#ff909022",
+      }}
+    >
+      {txt}
+    </span>
+  );
+}
+
+/* ---------- Ortak stiller ---------- */
+const cardStyle: React.CSSProperties = {
+  background: C.card,
+  border: `1px solid ${C.cardEdge}`,
+  borderRadius: 20,
+  padding: "20px 18px",
+};
+
+const secenekStyle: React.CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "13px 15px",
+  borderRadius: 13,
+  background: "#00000022",
+  border: `1px solid ${C.cardEdge}`,
+  color: C.cream,
+  fontSize: 15,
+  fontFamily: sans,
+  textAlign: "left",
+  cursor: "pointer",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  padding: "13px 15px",
+  borderRadius: 14,
+  background: C.card,
+  border: `1px solid ${C.cardEdge}`,
+  color: C.cream,
+  fontSize: 16,
+  fontFamily: sans,
+  outline: "none",
+};
+
+const modKartStyle: React.CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+  textAlign: "left",
+  padding: "14px 16px",
+  borderRadius: 16,
+  cursor: "pointer",
+  background: C.card,
+  border: `1px solid ${C.cardEdge}`,
+  color: C.cream,
+};
+
+const etiketStyle: React.CSSProperties = {
+  fontSize: 13,
+  color: C.muted,
+  display: "block",
+  marginBottom: 6,
+};

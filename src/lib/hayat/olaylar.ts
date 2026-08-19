@@ -1,562 +1,21 @@
-import React, { useState } from "react";
-import {
-  Heart,
-  Users,
-  Briefcase,
-  Activity,
-  Smile,
-  Coins,
-  RotateCcw,
-  ChevronRight,
-  ChevronLeft,
-  Check,
-} from "lucide-react";
+/* Hayat Simülatörü — elle yazılmış anlatı olayları
+   Bunlar hikâyenin omurgası: dönüm noktaları ve zincirleme olaylar.
+   Aradaki yılları `uretec.ts` içindeki prosedürel sahneler dolduruyor.
 
-/* ---------- Renkler & Fontlar ---------- */
-const C = {
-  bg1: "#17122a",
-  bg2: "#241a3d",
-  card: "#2b2146",
-  cardEdge: "#3a2e5c",
-  cream: "#ece7f5",
-  muted: "#9a8fb5",
-  gold: "#f5b942",
-  rose: "#f2739d",
-  teal: "#4fd1c5",
-  green: "#6ee7a0",
-  sky: "#7da8ff",
-};
-const serif = "Georgia, 'Times New Roman', serif";
-const sans = "system-ui, -apple-system, sans-serif";
+   evreler : olayın çıkabileceği yaş bantları — joker yok, her olay yaşına uygun
+   gerek   : { bayrak, yokBayrak, iliski, yokIliski } koşulları
+   tekSefer: zincir olayları için (motor zaten bir hayatta olayı tekrar etmez)
+   Metinlerde {sevgili} {es} {arkadas} {rakip} {cocuk} {kopek} {ilkAsk}
+   {isim} {birlikteYil} yer tutucuları kullanılabilir. */
 
-/* ---------- Statlar ---------- */
-const STATS = [
-  { key: "saglik", label: "Sağlık", color: C.green, Icon: Activity },
-  { key: "mutluluk", label: "Mutluluk", color: C.gold, Icon: Smile },
-  { key: "ask", label: "Aşk", color: C.rose, Icon: Heart },
-  { key: "arkadaslik", label: "Arkadaşlık", color: C.teal, Icon: Users },
-  { key: "kariyer", label: "Kariyer", color: C.sky, Icon: Briefcase },
-];
+import type { Olay } from "./tipler";
 
-/* ---------- Modlar ---------- */
-const MODES = [
-  {
-    key: "normal",
-    ad: "Normal Hayat",
-    emoji: "🌱",
-    aciklama: "Dengeli bir başlangıç. Klasik bir hayat yolculuğu.",
-    start: { saglik: 75, mutluluk: 70, ask: 20, arkadaslik: 60, kariyer: 20 },
-    para: 2000,
-  },
-  {
-    key: "zengin",
-    ad: "Altın Kaşık",
-    emoji: "💰",
-    aciklama: "Zengin doğdun. Cebin dolu ama sevgi başka mesele.",
-    start: { saglik: 80, mutluluk: 65, ask: 25, arkadaslik: 40, kariyer: 35 },
-    para: 250000,
-  },
-  {
-    key: "fakir",
-    ad: "Zor Yol",
-    emoji: "🥔",
-    aciklama: "Elinde hiçbir şey yok. Her şeyi sen kazanacaksın.",
-    start: { saglik: 60, mutluluk: 45, ask: 15, arkadaslik: 55, kariyer: 10 },
-    para: 50,
-  },
-  {
-    key: "romantik",
-    ad: "Kalp Yolu",
-    emoji: "💘",
-    aciklama: "Aşk her köşede. Duygusal, çalkantılı bir hayat.",
-    start: { saglik: 70, mutluluk: 70, ask: 45, arkadaslik: 65, kariyer: 20 },
-    para: 3000,
-  },
-  {
-    key: "kaos",
-    ad: "Kaos Modu",
-    emoji: "🌪️",
-    aciklama: "Hiçbir kural yok. Her an her şey olabilir.",
-    start: { saglik: 65, mutluluk: 60, ask: 30, arkadaslik: 50, kariyer: 25 },
-    para: 5000,
-  },
-];
-
-/* ---------- Karakter oluşturma seçenekleri ---------- */
-const CINSIYETLER = [
-  { key: "kadin", ad: "Kadın", emoji: "♀" },
-  { key: "erkek", ad: "Erkek", emoji: "♂" },
-  { key: "belirsiz", ad: "Belirtmek istemiyorum", emoji: "✦" },
-];
-
-const BASLANGICLAR = [
-  {
-    key: "bebek",
-    ad: "Bebeklikten",
-    yas: 0,
-    emoji: "🍼",
-    aciklama: "Her şeyi en baştan yaşa. Uzun ve dolambaçlı bir yolculuk.",
-    fx: { saglik: 4, mutluluk: 3 },
-  },
-  {
-    key: "cocuk",
-    ad: "Çocukluktan",
-    yas: 7,
-    emoji: "🎒",
-    aciklama: "İlk zil, ilk arkadaşlık, ilk kırgınlık.",
-    fx: { arkadaslik: 3 },
-  },
-  {
-    key: "genc",
-    ad: "Gençlikten",
-    yas: 16,
-    emoji: "🛹",
-    aciklama: "Kalbin hızlı atıyor, sınavlar kapıda, hayat aceleci.",
-    fx: { kariyer: 6, arkadaslik: 5, mutluluk: -3 },
-  },
-];
-
-const KOKENLER = [
-  {
-    key: "varlikli",
-    ad: "Varlıklı aile",
-    emoji: "🏛️",
-    aciklama: "Kapılar senin için zaten aralık. Ama sevgi ayrı bir para birimi.",
-    paraCarpan: 10,
-    paraEk: 40000,
-    fx: { kariyer: 10, saglik: 5, mutluluk: -4, arkadaslik: -6 },
-    hikaye: "geniş ama sessiz bir evde",
-  },
-  {
-    key: "orta",
-    ad: "Orta halli",
-    emoji: "🏡",
-    aciklama: "Ne çok var ne çok yok. Ay sonu biraz sıkışık, gerisi yolunda.",
-    paraCarpan: 1,
-    paraEk: 0,
-    fx: { mutluluk: 4, arkadaslik: 4 },
-    hikaye: "kalabalık bir apartman dairesinde",
-  },
-  {
-    key: "zor",
-    ad: "Zor şartlar",
-    emoji: "🔧",
-    aciklama: "Her şeyi kendin kazanacaksın. Bu seni erken büyütür.",
-    paraCarpan: 0.2,
-    paraEk: 0,
-    fx: { saglik: -6, mutluluk: -7, kariyer: -3, arkadaslik: 7 },
-    hikaye: "sobayla ısınan iki odalı bir evde",
-  },
-  {
-    key: "kimsesiz",
-    ad: "Kimsesiz",
-    emoji: "🕯️",
-    aciklama: "Kimse yok. Sadece sen ve çok kalabalık bir dünya.",
-    paraCarpan: 0.05,
-    paraEk: 0,
-    fx: { saglik: -8, mutluluk: -11, ask: -5, arkadaslik: -8, kariyer: 5 },
-    hikaye: "yatakhanesi hep soğuk olan bir yurtta",
-  },
-];
-
-const MESLEKLER = [
-  {
-    key: "doktor",
-    ad: "Doktor",
-    emoji: "🩺",
-    aciklama: "İyileştirmek istiyorsun.",
-    fx: { saglik: 5, kariyer: 4 },
-  },
-  {
-    key: "sanatci",
-    ad: "Sanatçı",
-    emoji: "🎭",
-    aciklama: "Anlatmadan duramıyorsun.",
-    fx: { mutluluk: 6, kariyer: -2 },
-  },
-  {
-    key: "muhendis",
-    ad: "Mühendis",
-    emoji: "📐",
-    aciklama: "Her şeyi söküp takıyorsun.",
-    fx: { kariyer: 6 },
-  },
-  {
-    key: "girisimci",
-    ad: "Girişimci",
-    emoji: "🚀",
-    aciklama: "Fırsat kokusu alıyorsun.",
-    fx: { kariyer: 3, mutluluk: 2 },
-  },
-  {
-    key: "sporcu",
-    ad: "Sporcu",
-    emoji: "🏅",
-    aciklama: "Bedenin en iyi aletin.",
-    fx: { saglik: 9, kariyer: 2 },
-  },
-  {
-    key: "belirsiz",
-    ad: "Belirsiz",
-    emoji: "🌫️",
-    aciklama: "Henüz karar vermedin. Belki de hiç vermezsin.",
-    fx: { mutluluk: 3 },
-  },
-];
-
-const KISILIKLER = [
-  {
-    key: "cesur",
-    ad: "Cesur",
-    emoji: "🦁",
-    aciklama: "Korkuyu bilirsin ama durmazsın.",
-    fx: { saglik: 3 },
-  },
-  {
-    key: "utangac",
-    ad: "Utangaç",
-    emoji: "🌙",
-    aciklama: "Kalabalıkta sesin kısılır.",
-    fx: { arkadaslik: -5, mutluluk: 3 },
-  },
-  {
-    key: "hirsli",
-    ad: "Hırslı",
-    emoji: "🔥",
-    aciklama: "Yeterli diye bir şey yok.",
-    fx: { kariyer: 6, mutluluk: -3 },
-  },
-  {
-    key: "sadik",
-    ad: "Sadık",
-    emoji: "🪢",
-    aciklama: "Verdiğin sözü taşırsın.",
-    fx: { ask: 5, arkadaslik: 4 },
-  },
-  {
-    key: "umursamaz",
-    ad: "Umursamaz",
-    emoji: "🫠",
-    aciklama: "Omuz silkmek bir yetenektir.",
-    fx: { mutluluk: 5, kariyer: -4 },
-  },
-  {
-    key: "merhametli",
-    ad: "Merhametli",
-    emoji: "🤍",
-    aciklama: "Başkasının derdi sende kalır.",
-    fx: { arkadaslik: 6, mutluluk: 2 },
-  },
-  {
-    key: "kurnaz",
-    ad: "Kurnaz",
-    emoji: "🦊",
-    aciklama: "Kısa yolu hep sen bulursun.",
-    fx: { kariyer: 4, arkadaslik: -3 },
-  },
-  {
-    key: "durust",
-    ad: "Dürüst",
-    emoji: "⚖️",
-    aciklama: "Yalan söylemek sana pahalıya gelir.",
-    fx: { arkadaslik: 5, kariyer: -2 },
-  },
-];
-
-/* ---------- İlişkiler için isim havuzları ---------- */
-const ISIMLER = {
-  kadin: [
-    "Elif",
-    "Deniz",
-    "Zeynep",
-    "Nur",
-    "Selin",
-    "Aslı",
-    "Ceren",
-    "Melis",
-    "Bilge",
-    "İrem",
-    "Yasemin",
-    "Duru",
-  ],
-  erkek: [
-    "Kaan",
-    "Mert",
-    "Emre",
-    "Tolga",
-    "Barış",
-    "Sinan",
-    "Cem",
-    "Onur",
-    "Kerem",
-    "Umut",
-    "Arda",
-    "Ediz",
-  ],
-};
-
-/* ---------------------------------------------------------------
-   ETİKET SİSTEMİ
-   Her seçeneğe `etiketler` verilir. Kişilik ve meslek tabloları bu
-   etiketlere bakarak ek stat/para etkisi ve ek anlatı cümlesi ekler.
-   Yeni bir kişilik ya da meslek eklemek için sadece bu tablolara
-   satır eklemek yeterli — olaylara dokunmaya gerek yok.
-
-   Genel etiketler : cesaret, kacinma, risk, guvenli, sosyal, yalniz,
-                     romantik, sadakat, calisma, tembellik, yardim,
-                     bencil, durustluk, hile
-   Meslek etiketleri: tip, sanat, teknik, ticaret, spor, kesif
-----------------------------------------------------------------*/
-
-const KISILIK_ETKI = {
-  cesur: {
-    cesaret: {
-      fx: { saglik: 6, arkadaslik: 5, mutluluk: 4 },
-      not: "Cesaretin işini kolaylaştırdı; sesin hiç titremedi.",
-    },
-    kacinma: {
-      fx: { mutluluk: -6 },
-      not: "Geri adım atmak sana hiç yakışmadı, o akşam kendine kızdın.",
-    },
-    risk: { fx: { mutluluk: 4 }, not: "Riskin verdiği o elektrik hoşuna gitti." },
-    spor: { fx: { saglik: 3 }, not: "Bedenini zorlamak seni hiç korkutmadı." },
-  },
-  utangac: {
-    cesaret: {
-      fx: { saglik: -6, mutluluk: -4, arkadaslik: -3 },
-      not: "Sesin çıkana kadar avuçların terledi; bedeli ağır oldu.",
-    },
-    sosyal: {
-      fx: { arkadaslik: -4, mutluluk: -3 },
-      not: "Kalabalığın ortasında kendini bir anda çok görünür hissettin.",
-    },
-    yalniz: {
-      fx: { mutluluk: 6, saglik: 3 },
-      not: "Kendi köşene çekilmek sana iyi geldi; sessizlik seni dinlendirdi.",
-    },
-    kacinma: { fx: { mutluluk: 4 }, not: "Kaçmak bu sefer utanç değil, rahatlama getirdi." },
-    sanat: { fx: { mutluluk: 5 }, not: "Söyleyemediğin her şeyi işine döktün." },
-  },
-  hirsli: {
-    calisma: {
-      fx: { kariyer: 8, mutluluk: 3, saglik: -3 },
-      not: "Çalışmak sana yorgunluk değil, tatmin veriyor.",
-    },
-    tembellik: {
-      fx: { mutluluk: -7, kariyer: -3 },
-      not: "Boş geçen her saat içinde bir suçluluk bıraktı.",
-    },
-    risk: {
-      fx: { kariyer: 5 },
-      paraCarpan: 1.25,
-      not: "Hırsın seni tam zamanında masaya oturttu.",
-    },
-    bencil: { fx: { kariyer: 4, arkadaslik: -2 }, not: "Kendini önceye almakta hiç zorlanmadın." },
-  },
-  sadik: {
-    sadakat: {
-      fx: { ask: 8, arkadaslik: 7, mutluluk: 4 },
-      not: "Sözünü tutmak sana her zamanki gibi kolay geldi.",
-    },
-    romantik: { fx: { ask: 6, mutluluk: 3 }, not: "Sevmeyi yarım yamalak yapmayı hiç bilmedin." },
-    hile: {
-      fx: { mutluluk: -8, ask: -5 },
-      not: "Kendi kurallarını çiğnedin; aynaya bakmak günlerce zor geldi.",
-    },
-    yalniz: { fx: { mutluluk: -4 }, not: "Yalnız kalmak senin gibi biri için ceza gibiydi." },
-  },
-  umursamaz: {
-    tembellik: {
-      fx: { mutluluk: 8, saglik: 3 },
-      not: "Hiçbir şey yapmamak sana hiç dokunmadı, aksine.",
-    },
-    calisma: { fx: { kariyer: -4, mutluluk: -3 }, not: "Bu kadar ciddiye almak seni bunalttı." },
-    risk: {
-      fx: { mutluluk: 5, saglik: -3 },
-      not: "Sonucunu düşünmeden atladın; zaten hep öyle yaparsın.",
-    },
-    yardim: {
-      fx: { arkadaslik: -4 },
-      not: "Yardım ettin ama içten içe 'bana ne' diyen bir ses vardı.",
-    },
-  },
-  merhametli: {
-    yardim: {
-      fx: { mutluluk: 9, arkadaslik: 7 },
-      not: "Birine dokunmak seni her seferinde onarıyor.",
-    },
-    bencil: { fx: { mutluluk: -8 }, not: "Kendini öne almak sana günlerce ağırlık yaptı." },
-    sosyal: {
-      fx: { arkadaslik: 5, mutluluk: 3 },
-      not: "İnsanlar yanında rahat ediyor, bunu sen de hissediyorsun.",
-    },
-    romantik: { fx: { ask: 5 }, not: "Sevgiyi vermekten hiç korkmadın." },
-  },
-  kurnaz: {
-    hile: {
-      fx: { kariyer: 6, mutluluk: 3 },
-      paraCarpan: 1.35,
-      not: "Kimsenin göremediği aralığı sen gördün.",
-    },
-    durustluk: {
-      fx: { kariyer: -3, mutluluk: -2 },
-      not: "Dürüst oynamak sana pahalıya patladı, farkındasın.",
-    },
-    risk: {
-      fx: { kariyer: 3 },
-      paraCarpan: 1.2,
-      not: "Kaçış planını daha ilk adımda hazırlamıştın.",
-    },
-    bencil: {
-      fx: { kariyer: 4, arkadaslik: -3 },
-      not: "Kimse fark etmedi; sen zaten buna güveniyordun.",
-    },
-  },
-  durust: {
-    durustluk: {
-      fx: { arkadaslik: 8, mutluluk: 6 },
-      not: "Doğruyu söylemek seni her zamanki gibi hafifletti.",
-    },
-    hile: {
-      fx: { mutluluk: -9, arkadaslik: -4 },
-      not: "Yalan söylerken sesin bile sana yabancı geldi.",
-    },
-    sadakat: {
-      fx: { arkadaslik: 5, ask: 3 },
-      not: "Arkasında durdun, çünkü başka türlüsünü beceremezsin.",
-    },
-    yardim: {
-      fx: { mutluluk: 4, arkadaslik: 3 },
-      not: "Karşılık beklemeden yaptın; zaten hep öyle yapıyorsun.",
-    },
-  },
-};
-
-const MESLEK_ETKI = {
-  doktor: {
-    tip: {
-      fx: { kariyer: 10, saglik: 4, mutluluk: 4 },
-      not: "Tıbba olan eğilimin tam da burada işe yaradı.",
-    },
-    calisma: { fx: { kariyer: 4, saglik: -2 }, not: "Uzun nöbetlere yatkın bir doğan var." },
-    yardim: { fx: { mutluluk: 4, kariyer: 3 }, not: "İnsana dokunan işler seni besliyor." },
-  },
-  sanatci: {
-    sanat: {
-      fx: { kariyer: 10, mutluluk: 8 },
-      not: "Yaratma isteğin bu anı senin lehine çevirdi.",
-    },
-    risk: { fx: { mutluluk: 4 }, not: "Belirsizlikle yaşamaya zaten alışkınsın." },
-    calisma: {
-      fx: { kariyer: -2, mutluluk: -3 },
-      not: "Düzenli mesai senin ruhunu hep biraz eziyor.",
-    },
-  },
-  muhendis: {
-    teknik: {
-      fx: { kariyer: 10, mutluluk: 5 },
-      paraCarpan: 1.2,
-      not: "Problemi parçalarına ayırdın ve çözdün.",
-    },
-    calisma: { fx: { kariyer: 5 }, not: "Sistemli çalışmak senin doğal hızın." },
-    risk: { fx: { kariyer: -2 }, not: "Hesaplanamayan şeyler seni huzursuz ediyor." },
-  },
-  girisimci: {
-    ticaret: {
-      fx: { kariyer: 8, mutluluk: 4 },
-      paraCarpan: 1.5,
-      not: "Fırsatın kokusunu herkesten önce aldın.",
-    },
-    risk: {
-      fx: { kariyer: 5 },
-      paraCarpan: 1.3,
-      not: "Riski bir tehdit değil, bir fiyat olarak görüyorsun.",
-    },
-    guvenli: { fx: { mutluluk: -4 }, not: "Garanti olan her şey sana biraz dar geliyor." },
-  },
-  sporcu: {
-    spor: {
-      fx: { saglik: 10, kariyer: 8, mutluluk: 5 },
-      not: "Bedenin ne yapacağını biliyordu, düşünmene gerek kalmadı.",
-    },
-    cesaret: { fx: { saglik: 5, arkadaslik: 3 }, not: "Fiziğin seni bu anda korudu." },
-    tembellik: {
-      fx: { saglik: -5 },
-      not: "Antrenmansız geçen günler hemen bedeninde hissediliyor.",
-    },
-  },
-  belirsiz: {
-    kesif: {
-      fx: { mutluluk: 7, kariyer: 4 },
-      not: "Ne olacağını bilmediğin şeyler seni hâlâ heyecanlandırıyor.",
-    },
-    guvenli: { fx: { mutluluk: -3 }, not: "Yolun belli olması sana huzurdan çok sıkıntı veriyor." },
-  },
-};
-
-/* Mesleğin "imza" etiketleri: bir seçenekte birden çok meslek etkisi
-   tetiklenirse anlatıda önce bunlar anılır. */
-const MESLEK_IMZA_ETIKETLERI = ["tip", "sanat", "teknik", "ticaret", "spor", "kesif"];
-
-/* ---------- Kritik stat seviyeleri: anlatı tonu ----------
-   Stat dibe vurduğunda ya da tavana yaklaştığında anlatının tonu değişir.
-   Aynı cümle sürekli tekrarlanmasın diye her kural için birkaç varyant var. */
-const TON_KURALLARI = [
-  {
-    test: (s) => s.saglik <= 18,
-    cumleler: [
-      "Bedenin bu günlerde her şeye itiraz ediyor; en küçük çaba bile pahalıya geliyor.",
-      "Ayağa kalkarken tutunacak bir yer aramaya başladın ve bunu kimseye söylemedin.",
-      "Nefesin eskisi kadar yetmiyor; her şeyi biraz daha yavaş yapıyorsun.",
-    ],
-  },
-  {
-    test: (s) => s.mutluluk <= 18,
-    cumleler: [
-      "Her şey kalın bir camın ardından oluyor gibi; sevinç bile sana uzaktan el sallıyor.",
-      "Bu aralar sabahları yataktan çıkmak, günün geri kalanından daha zor.",
-      "İçindeki ağırlık her şeyi gölgeliyor; güzel şeyler bile sana geç ulaşıyor.",
-    ],
-  },
-  {
-    test: (s) => s.arkadaslik <= 15,
-    cumleler: [
-      "Telefonun günlerdir sessiz. Ne arayan var, ne arayacağın.",
-      "Bunu anlatabileceğin birini düşündün ve listede kimse çıkmadı.",
-    ],
-  },
-  {
-    test: (s) => s.ask <= 12,
-    cumleler: [
-      "Yatağın bir yanı hep soğuk kalıyor ve buna alıştığını fark etmek daha da ağır.",
-      "Eve döndüğünde ışığı açan kimse olmuyor; bunu artık düşünmemeye çalışıyorsun.",
-    ],
-  },
-  {
-    test: (s) => s.mutluluk >= 88,
-    cumleler: [
-      "Bu aralar içinde bir hafiflik var; en sıradan gün bile sana bir şey bırakıyor.",
-      "Uzun zamandır kendini bu kadar yerinde hissetmemiştin.",
-      "Bugünlerde gülmek için pek sebep aramıyorsun, kendiliğinden geliyor.",
-    ],
-  },
-];
-
-/* ---------------------------------------------------------------
-   OLAYLAR
-   cat      : ask | arkadaslik | kariyer | para | saglik | hayat
-   stages   : bebek | cocuk | genc | gencYetiskin | yetiskin | orta | yasli | hepsi
-   gerek    : { bayrak: [...], yokBayrak: [...], iliski: "sevgili", yokIliski: "es" }
-   tekSefer : bir kez görülür (zincir olayları için)
-   Metinlerde {sevgili} {es} {partner} {arkadas} {rakip} {cocuk} {kopek}
-   {ilkAsk} {isim} {birlikteYil} yer tutucuları kullanılabilir.
-----------------------------------------------------------------*/
-const EVENTS = [
+export const OLAYLAR: Olay[] = [
   /* ================= BEBEKLİK ================= */
   {
     id: "b1",
-    stages: ["bebek"],
-    cat: "hayat",
+    evreler: ["bebek"],
+    alan: "hayat",
     emoji: "🍼",
     baslik: "İlk Kelime",
     metin: "Herkes seni izliyor. Ağzından çıkacak ilk kelimeyi bekliyorlar.",
@@ -587,8 +46,8 @@ const EVENTS = [
   },
   {
     id: "b2",
-    stages: ["bebek"],
-    cat: "saglik",
+    evreler: ["bebek"],
+    alan: "saglik",
     emoji: "🌡️",
     baslik: "Gece Ateşi",
     metin: "Gecenin bir yarısı ateşin çıktı. Evde telaş var.",
@@ -612,8 +71,8 @@ const EVENTS = [
   },
   {
     id: "b3",
-    stages: ["bebek"],
-    cat: "arkadaslik",
+    evreler: ["bebek"],
+    alan: "arkadaslik",
     emoji: "🧸",
     baslik: "Oyuncak Kavgası",
     metin: "Parkta bir çocuk elindeki ayıyı çekiştiriyor. İkiniz de bırakmıyorsunuz.",
@@ -636,8 +95,8 @@ const EVENTS = [
   },
   {
     id: "b4",
-    stages: ["bebek"],
-    cat: "hayat",
+    evreler: ["bebek"],
+    alan: "hayat",
     emoji: "👣",
     baslik: "İlk Adım",
     metin: "Sehpaya tutunmuş, karşıda seni bekleyen kollara bakıyorsun. Arada üç adım var.",
@@ -663,8 +122,8 @@ const EVENTS = [
   /* ================= ÇOCUKLUK ================= */
   {
     id: "c1",
-    stages: ["cocuk"],
-    cat: "arkadaslik",
+    evreler: ["cocuk"],
+    alan: "arkadaslik",
     emoji: "🎒",
     baslik: "İlk Gün",
     metin: "Okulda tek başına oturuyorsun. Yan masadaki çocuk sana gülümsüyor.",
@@ -689,8 +148,8 @@ const EVENTS = [
   },
   {
     id: "c2",
-    stages: ["cocuk"],
-    cat: "hayat",
+    evreler: ["cocuk"],
+    alan: "hayat",
     emoji: "🐶",
     baslik: "Sokak Köpeği",
     metin: "Yağmurda titreyen bir yavru köpek buldun. Gözleri sana bakıyor.",
@@ -717,8 +176,8 @@ const EVENTS = [
   },
   {
     id: "c3",
-    stages: ["cocuk"],
-    cat: "kariyer",
+    evreler: ["cocuk"],
+    alan: "kariyer",
     emoji: "🎨",
     baslik: "Gizli Yetenek",
     metin: "Öğretmen çizdiğin resmi tüm sınıfa gösterdi: 'Bu çocukta iş var!'",
@@ -743,8 +202,8 @@ const EVENTS = [
   },
   {
     id: "c4",
-    stages: ["cocuk"],
-    cat: "saglik",
+    evreler: ["cocuk"],
+    alan: "saglik",
     emoji: "😠",
     baslik: "Zorba",
     metin: "Sınıfın kabadayısı harçlığını istiyor. Koridorda herkes izliyor.",
@@ -786,8 +245,8 @@ const EVENTS = [
   },
   {
     id: "c5",
-    stages: ["cocuk"],
-    cat: "para",
+    evreler: ["cocuk"],
+    alan: "para",
     emoji: "🪙",
     baslik: "Kumbara",
     metin: "Aylardır biriktirdiğin kumbara doldu. Camekânda bir bisiklet var.",
@@ -812,8 +271,8 @@ const EVENTS = [
   },
   {
     id: "c6",
-    stages: ["cocuk"],
-    cat: "hayat",
+    evreler: ["cocuk"],
+    alan: "hayat",
     emoji: "🪟",
     baslik: "Kırılan Cam",
     metin: "Attığın top komşunun camını indirdi. Kimse görmedi.",
@@ -839,8 +298,8 @@ const EVENTS = [
   /* ================= GENÇLİK ================= */
   {
     id: "g1",
-    stages: ["genc"],
-    cat: "ask",
+    evreler: ["genc"],
+    alan: "ask",
     emoji: "💌",
     baslik: "İlk Aşk",
     metin: "Kalbin sınıftaki birine kayıyor. Bugün koridorda yalnız yakaladın.",
@@ -881,8 +340,8 @@ const EVENTS = [
   },
   {
     id: "g2",
-    stages: ["genc"],
-    cat: "kariyer",
+    evreler: ["genc"],
+    alan: "kariyer",
     emoji: "📚",
     baslik: "Sınav Baskısı",
     metin: "Üniversite sınavına aylar var. Ailen sürekli 'çalış' diyor, sen sürekli yoruluyorsun.",
@@ -913,8 +372,8 @@ const EVENTS = [
   },
   {
     id: "g3",
-    stages: ["genc"],
-    cat: "arkadaslik",
+    evreler: ["genc"],
+    alan: "arkadaslik",
     emoji: "🎉",
     baslik: "Gece Partisi",
     metin: "Arkadaşların gizlice partiye çağırdı. Ailen duysa asla izin vermez.",
@@ -937,8 +396,8 @@ const EVENTS = [
   },
   {
     id: "g4",
-    stages: ["genc"],
-    cat: "para",
+    evreler: ["genc"],
+    alan: "para",
     emoji: "📱",
     baslik: "Viral Oldun",
     metin: "Paylaştığın bir video bir gecede patladı. Sabah uyandığında binlerce bildirim var.",
@@ -964,8 +423,8 @@ const EVENTS = [
   },
   {
     id: "g5",
-    stages: ["genc"],
-    cat: "arkadaslik",
+    evreler: ["genc"],
+    alan: "arkadaslik",
     emoji: "🗡️",
     baslik: "İhanet",
     metin: "En yakın arkadaşın, sadece ona anlattığın şeyi herkese anlatmış.",
@@ -995,8 +454,8 @@ const EVENTS = [
   },
   {
     id: "g6",
-    stages: ["genc"],
-    cat: "kariyer",
+    evreler: ["genc"],
+    alan: "kariyer",
     emoji: "🥇",
     baslik: "Yarışma",
     metin: "Okullar arası yarışmada finaldesin. Karşındaki, sana yıllardır rakip biri.",
@@ -1032,8 +491,8 @@ const EVENTS = [
   },
   {
     id: "g7",
-    stages: ["genc"],
-    cat: "saglik",
+    evreler: ["genc"],
+    alan: "saglik",
     emoji: "🚬",
     baslik: "Merak",
     metin:
@@ -1058,8 +517,8 @@ const EVENTS = [
   },
   {
     id: "g8",
-    stages: ["genc"],
-    cat: "hayat",
+    evreler: ["genc"],
+    alan: "hayat",
     emoji: "🎒",
     baslik: "Şehirden Ayrılmak",
     metin: "Okul için başka bir şehre gitme ihtimali var. Herkesin bir fikri var, seninki hariç.",
@@ -1087,8 +546,8 @@ const EVENTS = [
   /* ================= GENÇ YETİŞKİNLİK ================= */
   {
     id: "y1",
-    stages: ["gencYetiskin"],
-    cat: "kariyer",
+    evreler: ["gencYetiskin"],
+    alan: "kariyer",
     emoji: "💼",
     baslik: "İş Teklifi",
     metin: "Elinde iki zarf var: güvenli bir maaş, ya da riskli ama tutkulu bir iş.",
@@ -1114,8 +573,8 @@ const EVENTS = [
   },
   {
     id: "y2",
-    stages: ["gencYetiskin"],
-    cat: "ask",
+    evreler: ["gencYetiskin"],
+    alan: "ask",
     emoji: "💫",
     baslik: "Bir Tanışma",
     metin: "Kafede biriyle göz göze geldin. Gülümsüyor ve bakışını kaçırmıyor.",
@@ -1141,8 +600,8 @@ const EVENTS = [
   },
   {
     id: "y3",
-    stages: ["gencYetiskin", "yetiskin"],
-    cat: "para",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "para",
     emoji: "📈",
     baslik: "Kripto Fırsatı",
     metin:
@@ -1183,8 +642,8 @@ const EVENTS = [
   },
   {
     id: "y4",
-    stages: ["gencYetiskin", "yetiskin"],
-    cat: "ask",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "ask",
     emoji: "💍",
     baslik: "Büyük Soru",
     metin:
@@ -1226,8 +685,8 @@ const EVENTS = [
   },
   {
     id: "y5",
-    stages: ["gencYetiskin", "yetiskin"],
-    cat: "saglik",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "saglik",
     emoji: "😰",
     baslik: "Tükenmişlik",
     metin: "Haftalardır az uyuyup çok çalışıyorsun. Bugün ayağa kalkarken oda döndü.",
@@ -1252,8 +711,8 @@ const EVENTS = [
   },
   {
     id: "y6",
-    stages: ["gencYetiskin", "yetiskin"],
-    cat: "para",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "para",
     emoji: "🧾",
     baslik: "Sıkışan Ay",
     metin: "Kira, fatura, borç... Bu ay hiçbiri denk gelmiyor. Bir tanıdık 'ben ayarlarım' diyor.",
@@ -1288,8 +747,8 @@ const EVENTS = [
   },
   {
     id: "y7",
-    stages: ["gencYetiskin"],
-    cat: "arkadaslik",
+    evreler: ["gencYetiskin"],
+    alan: "arkadaslik",
     emoji: "🏠",
     baslik: "Ev Arkadaşı",
     metin: "Kirayı bölüşmek için birinin taşınması gerekiyor. İlan verdin, kapıda biri duruyor.",
@@ -1316,8 +775,8 @@ const EVENTS = [
   },
   {
     id: "y8",
-    stages: ["gencYetiskin", "yetiskin"],
-    cat: "kariyer",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "kariyer",
     emoji: "🧪",
     baslik: "Kendi İşin",
     metin: "Aklındaki fikri artık uykunda bile görüyorsun. Ama kurmak için işi bırakmak gerek.",
@@ -1360,8 +819,8 @@ const EVENTS = [
   /* ================= YETİŞKİNLİK ================= */
   {
     id: "a1",
-    stages: ["yetiskin"],
-    cat: "kariyer",
+    evreler: ["yetiskin"],
+    alan: "kariyer",
     emoji: "🏆",
     baslik: "Terfi mi, Aile mi?",
     metin: "Hayalindeki terfi geldi ama başka şehirde. Sevdiklerin burada.",
@@ -1387,8 +846,8 @@ const EVENTS = [
   },
   {
     id: "a2",
-    stages: ["yetiskin"],
-    cat: "hayat",
+    evreler: ["yetiskin"],
+    alan: "hayat",
     emoji: "🎸",
     baslik: "Orta Yaş",
     metin: "Bir sabah aynada kendine baktın ve içinden geçti: 'Bu hayatı ben mi seçtim?'",
@@ -1421,8 +880,8 @@ const EVENTS = [
   },
   {
     id: "a3",
-    stages: ["yetiskin", "orta"],
-    cat: "para",
+    evreler: ["yetiskin", "orta"],
+    alan: "para",
     emoji: "🏠",
     baslik: "Yatırım",
     metin: "Bir emlak fırsatı çıktı. Tüm birikimini ve biraz da cesaret istiyor.",
@@ -1454,8 +913,8 @@ const EVENTS = [
   },
   {
     id: "a4",
-    stages: ["yetiskin", "orta"],
-    cat: "arkadaslik",
+    evreler: ["yetiskin", "orta"],
+    alan: "arkadaslik",
     emoji: "📞",
     baslik: "Eski Dost",
     metin: "Yıllar sonra çocukluk arkadaşın arıyor: 'Zor durumdayım, borç lazım.'",
@@ -1486,8 +945,8 @@ const EVENTS = [
   },
   {
     id: "a5",
-    stages: ["yetiskin"],
-    cat: "ask",
+    evreler: ["yetiskin"],
+    alan: "ask",
     emoji: "🌧️",
     baslik: "Soğuyan Ev",
     metin: "{es} ile aynı evde yaşıyorsunuz ama son aylarda konuşmalar iki cümleyi geçmiyor.",
@@ -1522,8 +981,8 @@ const EVENTS = [
   },
   {
     id: "a6",
-    stages: ["yetiskin", "orta"],
-    cat: "saglik",
+    evreler: ["yetiskin", "orta"],
+    alan: "saglik",
     emoji: "🫀",
     baslik: "Uyarı",
     metin: "Göğsünde birkaç saniye süren bir sıkışma oldu. Geçti ama seni korkuttu.",
@@ -1550,8 +1009,8 @@ const EVENTS = [
   /* ================= ORTA YAŞ ================= */
   {
     id: "o1",
-    stages: ["orta"],
-    cat: "saglik",
+    evreler: ["orta"],
+    alan: "saglik",
     emoji: "🩺",
     baslik: "Kontrol",
     metin: "Doktor tahlil kâğıdını uzatıyor: 'Yaşam tarzını değiştirmen lazım.'",
@@ -1575,8 +1034,8 @@ const EVENTS = [
   },
   {
     id: "o2",
-    stages: ["orta", "yasli"],
-    cat: "hayat",
+    evreler: ["orta", "yasli"],
+    alan: "hayat",
     emoji: "✈️",
     baslik: "Yapılacaklar Listesi",
     metin: "Hep 'bir gün' dediğin o uzun yolculuk hâlâ listenin başında duruyor.",
@@ -1601,8 +1060,8 @@ const EVENTS = [
   },
   {
     id: "o3",
-    stages: ["orta"],
-    cat: "arkadaslik",
+    evreler: ["orta"],
+    alan: "arkadaslik",
     emoji: "🕰️",
     baslik: "Vedanın Zamanı",
     metin: "Çocukluğundan beri tanıdığın birinin cenazesindesin. Kalabalık dağılıyor.",
@@ -1625,8 +1084,8 @@ const EVENTS = [
   },
   {
     id: "o4",
-    stages: ["orta"],
-    cat: "kariyer",
+    evreler: ["orta"],
+    alan: "kariyer",
     emoji: "🧭",
     baslik: "Genç Meslektaş",
     metin:
@@ -1650,8 +1109,8 @@ const EVENTS = [
   },
   {
     id: "o5",
-    stages: ["orta", "yasli"],
-    cat: "para",
+    evreler: ["orta", "yasli"],
+    alan: "para",
     emoji: "🧿",
     baslik: "Miras Kavgası",
     metin:
@@ -1679,8 +1138,8 @@ const EVENTS = [
   /* ================= YAŞLILIK ================= */
   {
     id: "z1",
-    stages: ["yasli"],
-    cat: "kariyer",
+    evreler: ["yasli"],
+    alan: "kariyer",
     emoji: "🌇",
     baslik: "Emeklilik",
     metin: "Uzun bir çalışma hayatının son gününde masanı topluyorsun. Şimdi ne olacak?",
@@ -1694,7 +1153,7 @@ const EVENTS = [
       },
       {
         t: "Danışmanlık yapmaya devam",
-        etiketler: ["calisma", "hirsli", "teknik"],
+        etiketler: ["calisma", "teknik"],
         fx: { kariyer: 7, mutluluk: 3, saglik: -6 },
         para: 12000,
         sonuc:
@@ -1704,8 +1163,8 @@ const EVENTS = [
   },
   {
     id: "z2",
-    stages: ["yasli"],
-    cat: "hayat",
+    evreler: ["yasli"],
+    alan: "hayat",
     emoji: "📖",
     baslik: "Miras",
     metin: "Geriye bir şey bırakmak istiyorsun. Ama ne?",
@@ -1738,8 +1197,8 @@ const EVENTS = [
   },
   {
     id: "z3",
-    stages: ["yasli"],
-    cat: "saglik",
+    evreler: ["yasli"],
+    alan: "saglik",
     emoji: "🦯",
     baslik: "Yavaşlayan Adımlar",
     metin: "Merdivenler eskisi gibi değil. Bir çocuğun kolunu uzatıyor.",
@@ -1762,8 +1221,8 @@ const EVENTS = [
   },
   {
     id: "z4",
-    stages: ["yasli"],
-    cat: "ask",
+    evreler: ["yasli"],
+    alan: "ask",
     emoji: "🪑",
     baslik: "İki Koltuk",
     metin: "Balkonda iki koltuk var. Biri seninki, diğeri yıllardır aynı kişinin.",
@@ -1790,8 +1249,8 @@ const EVENTS = [
      Bunlar ancak geçmişte belirli bir seçim yapıldıysa açılır. */
   {
     id: "zn1",
-    stages: ["yetiskin", "orta"],
-    cat: "ask",
+    evreler: ["yetiskin", "orta"],
+    alan: "ask",
     emoji: "🌹",
     baslik: "Geçmişten Biri",
     metin:
@@ -1834,8 +1293,8 @@ const EVENTS = [
   },
   {
     id: "zn2",
-    stages: ["gencYetiskin"],
-    cat: "ask",
+    evreler: ["gencYetiskin"],
+    alan: "ask",
     emoji: "📬",
     baslik: "Söylenmemiş Cümle",
     metin: "Yıllar önce cesaret edemediğin o kişiden bir mesaj geldi: 'Bir şey soracaktım.'",
@@ -1863,8 +1322,8 @@ const EVENTS = [
   },
   {
     id: "zn3",
-    stages: ["gencYetiskin", "yetiskin", "orta"],
-    cat: "para",
+    evreler: ["gencYetiskin", "yetiskin", "orta"],
+    alan: "para",
     emoji: "🚪",
     baslik: "Kapıdaki Adam",
     metin: "Yıllar önce aldığın borcun faizi katlanmış. Bu sabah kapıda iki kişi bekliyor.",
@@ -1904,8 +1363,8 @@ const EVENTS = [
   },
   {
     id: "zn4",
-    stages: ["yetiskin", "orta"],
-    cat: "kariyer",
+    evreler: ["yetiskin", "orta"],
+    alan: "kariyer",
     emoji: "♟️",
     baslik: "Aynı Masa",
     metin:
@@ -1925,7 +1384,7 @@ const EVENTS = [
       },
       {
         t: "Ez geç",
-        etiketler: ["hile", "bencil", "hirsli"],
+        etiketler: ["hile", "bencil"],
         fx: { kariyer: 12, arkadaslik: -10, mutluluk: -4 },
         para: 25000,
         sonuc:
@@ -1942,8 +1401,8 @@ const EVENTS = [
   },
   {
     id: "zn5",
-    stages: ["gencYetiskin", "yetiskin"],
-    cat: "hayat",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "hayat",
     emoji: "👶",
     baslik: "Bir Kişi Daha",
     metin: "{es} ile mutfakta uzun bir konuşma: çocuk sahibi olmak.",
@@ -1975,8 +1434,8 @@ const EVENTS = [
   },
   {
     id: "zn6",
-    stages: ["orta", "yasli"],
-    cat: "hayat",
+    evreler: ["orta", "yasli"],
+    alan: "hayat",
     emoji: "🎓",
     baslik: "Kanatlanan",
     metin: "{cocuk} büyüdü ve kendi yolunu çizmek istiyor. Senin planladığın yol değil.",
@@ -2005,8 +1464,8 @@ const EVENTS = [
   },
   {
     id: "zn7",
-    stages: ["gencYetiskin", "yetiskin"],
-    cat: "kariyer",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "kariyer",
     emoji: "🔔",
     baslik: "Kalabalığın Sesi",
     metin:
@@ -2035,8 +1494,8 @@ const EVENTS = [
   },
   {
     id: "zn8",
-    stages: ["genc", "gencYetiskin"],
-    cat: "hayat",
+    evreler: ["genc", "gencYetiskin"],
+    alan: "hayat",
     emoji: "🐾",
     baslik: "Vefa",
     metin: "{kopek} artık çok yaşlı. Bu sabah merdivenleri çıkamadı ve sana baktı.",
@@ -2066,8 +1525,8 @@ const EVENTS = [
   },
   {
     id: "zn9",
-    stages: ["yetiskin", "orta"],
-    cat: "para",
+    evreler: ["yetiskin", "orta"],
+    alan: "para",
     emoji: "📉",
     baslik: "Grafiklerin Esiri",
     metin:
@@ -2087,7 +1546,7 @@ const EVENTS = [
       },
       {
         t: "Bir kere daha büyük oyna",
-        etiketler: ["risk", "hirsli"],
+        etiketler: ["risk", "bencil"],
         fx: { saglik: -8, mutluluk: -6 },
         para: 20000,
         riskli: 0.65,
@@ -2104,8 +1563,8 @@ const EVENTS = [
   },
   {
     id: "zn10",
-    stages: ["gencYetiskin", "yetiskin", "orta"],
-    cat: "kariyer",
+    evreler: ["gencYetiskin", "yetiskin", "orta"],
+    alan: "kariyer",
     emoji: "🖼️",
     baslik: "İlk Sergi",
     metin:
@@ -2134,8 +1593,8 @@ const EVENTS = [
   },
   {
     id: "zn11",
-    stages: ["yetiskin", "orta"],
-    cat: "saglik",
+    evreler: ["yetiskin", "orta"],
+    alan: "saglik",
     emoji: "🫁",
     baslik: "Fatura",
     metin: "Gençlikte 'bir kerelik' dediğin şey yıllara yayıldı. Bugün doktor filmi ışığa tuttu.",
@@ -2164,8 +1623,8 @@ const EVENTS = [
   },
   {
     id: "zn12",
-    stages: ["yetiskin", "orta"],
-    cat: "ask",
+    evreler: ["yetiskin", "orta"],
+    alan: "ask",
     emoji: "💔",
     baslik: "Açığa Çıkan",
     metin: "{es} elinde telefonunla salonda oturuyor. Hiçbir şey söylemiyor, sadece bakıyor.",
@@ -2204,8 +1663,8 @@ const EVENTS = [
   },
   {
     id: "zn13",
-    stages: ["yetiskin", "orta"],
-    cat: "hayat",
+    evreler: ["yetiskin", "orta"],
+    alan: "hayat",
     emoji: "🚏",
     baslik: "Eski Sokak",
     metin: "Yıllar önce arkanda bıraktığın şehre bir işin düştü. Otobüs terminali hiç değişmemiş.",
@@ -2234,8 +1693,8 @@ const EVENTS = [
   /* ================= HER YAŞ / ŞANS ================= */
   {
     id: "h1",
-    stages: ["hepsi"],
-    cat: "para",
+    evreler: ["genc", "gencYetiskin"],
+    alan: "para",
     emoji: "🍀",
     baslik: "Beklenmedik Şans",
     metin: "Yolda katlanmış bir zarf buldun. İçinde hatırı sayılır bir para var.",
@@ -2259,8 +1718,8 @@ const EVENTS = [
   },
   {
     id: "h2",
-    stages: ["hepsi"],
-    cat: "hayat",
+    evreler: ["cocuk", "genc"],
+    alan: "hayat",
     emoji: "🤝",
     baslik: "Küçük İyilik",
     metin: "Yağmurda ıslanan yaşlı biri çantasını taşıyamıyor, kimse durmuyor.",
@@ -2283,8 +1742,8 @@ const EVENTS = [
   },
   {
     id: "h3",
-    stages: ["hepsi"],
-    cat: "saglik",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "saglik",
     emoji: "🌙",
     baslik: "Uykusuz Gece",
     metin: "Saat üç. Tavana bakıyorsun ve zihnin durmuyor.",
@@ -2314,8 +1773,8 @@ const EVENTS = [
   },
   {
     id: "h4",
-    stages: ["hepsi"],
-    cat: "arkadaslik",
+    evreler: ["gencYetiskin", "orta"],
+    alan: "arkadaslik",
     emoji: "🚌",
     baslik: "Yabancı",
     metin: "Uzun bir yolculukta yanındaki kişi konuşmak istiyor gibi.",
@@ -2340,9 +1799,9 @@ const EVENTS = [
   /* ================= KAOS ================= */
   {
     id: "k1",
-    stages: ["hepsi"],
+    evreler: ["gencYetiskin", "yetiskin"],
     kaosOnly: true,
-    cat: "para",
+    alan: "para",
     emoji: "🎰",
     baslik: "Piyango!",
     metin: "Aldığın bilet TUTTU. Büyük ikramiye senin!",
@@ -2369,9 +1828,9 @@ const EVENTS = [
   },
   {
     id: "k2",
-    stages: ["hepsi"],
+    evreler: ["genc", "gencYetiskin"],
     kaosOnly: true,
-    cat: "saglik",
+    alan: "saglik",
     emoji: "🛸",
     baslik: "Garip Işık",
     metin: "Gece gökyüzünde tuhaf bir ışık gördün. Ve sana doğru geliyor...",
@@ -2395,9 +1854,9 @@ const EVENTS = [
   },
   {
     id: "k3",
-    stages: ["hepsi"],
+    evreler: ["genc", "gencYetiskin", "yetiskin", "orta"],
     kaosOnly: true,
-    cat: "hayat",
+    alan: "hayat",
     emoji: "🌊",
     baslik: "Ters Giden Gün",
     metin: "Bugün her şey aynı anda ters gidiyor. Kader seninle açıkça dalga geçiyor.",
@@ -2411,7 +1870,7 @@ const EVENTS = [
       },
       {
         t: "Sinirlen, savaş",
-        etiketler: ["cesaret", "hirsli"],
+        etiketler: ["cesaret", "calisma"],
         fx: { mutluluk: -9, saglik: -7, kariyer: 5 },
         sonuc:
           "Kime denk geldiyse bağırdın, üç kapı çaldın, iki dilekçe yazdın. Akşam olduğunda sorunların çoğu çözülmüştü ve senin hiç enerjin kalmamıştı. Kazandın ama savaş alanı sendin.",
@@ -2420,9 +1879,9 @@ const EVENTS = [
   },
   {
     id: "k4",
-    stages: ["hepsi"],
+    evreler: ["gencYetiskin", "yetiskin"],
     kaosOnly: true,
-    cat: "kariyer",
+    alan: "kariyer",
     emoji: "🎪",
     baslik: "Absürt Teklif",
     metin: "Tanımadığın biri sana çok tuhaf ama çok kârlı bir iş teklif ediyor. Detay vermiyor.",
@@ -2453,1447 +1912,3 @@ const EVENTS = [
     ],
   },
 ];
-
-/* ---------- Yardımcılar ---------- */
-const clamp = (v) => Math.max(0, Math.min(100, v));
-const paraFmt = (n) => (n < 0 ? "-" : "") + "₺" + Math.abs(Math.round(n)).toLocaleString("tr-TR");
-const rastgele = (dizi) => dizi[Math.floor(Math.random() * dizi.length)];
-
-const KOPEK_ISIMLERI = ["Boncuk", "Karabaş", "Duman", "Paşa", "Zeytin", "Fındık", "Tarçın"];
-
-function stageOf(age) {
-  if (age <= 6) return "bebek";
-  if (age <= 12) return "cocuk";
-  if (age <= 19) return "genc";
-  if (age <= 35) return "gencYetiskin";
-  if (age <= 55) return "yetiskin";
-  if (age <= 70) return "orta";
-  return "yasli";
-}
-
-function stageEtiket(age) {
-  return {
-    bebek: "Bebeklik",
-    cocuk: "Çocukluk",
-    genc: "Gençlik",
-    gencYetiskin: "Genç yetişkinlik",
-    yetiskin: "Yetişkinlik",
-    orta: "Orta yaş",
-    yasli: "Yaşlılık",
-  }[stageOf(age)];
-}
-
-/* İlişkiler için isim üretimi */
-function iliskiIsmiUret(tur, cinsiyet, mevcutIsimler) {
-  if (tur === "kopek")
-    return (
-      rastgele(KOPEK_ISIMLERI.filter((i) => !mevcutIsimler.includes(i))) || rastgele(KOPEK_ISIMLERI)
-    );
-  let havuz;
-  if (tur === "sevgili" || tur === "es") {
-    if (cinsiyet === "kadin") havuz = ISIMLER.erkek;
-    else if (cinsiyet === "erkek") havuz = ISIMLER.kadin;
-    else havuz = [...ISIMLER.kadin, ...ISIMLER.erkek];
-  } else {
-    havuz = [...ISIMLER.kadin, ...ISIMLER.erkek];
-  }
-  const kalan = havuz.filter((i) => !mevcutIsimler.includes(i));
-  return rastgele(kalan.length ? kalan : havuz);
-}
-
-/* Metin yer tutucuları: {sevgili} {es} {arkadas} ... */
-const YEDEK_AD = {
-  sevgili: "sevdiğin kişi",
-  es: "eşin",
-  partner: "sevdiğin kişi",
-  arkadas: "yakın bir arkadaşın",
-  rakip: "eski rakibin",
-  cocuk: "çocuğun",
-  kopek: "köpeğin",
-  ilkAsk: "ilk aşkın",
-};
-
-function iliskiBul(iliskiler, tur) {
-  if (tur === "ilkAsk") return [...iliskiler].reverse().find((i) => i.ilkAsk);
-  if (tur === "partner") return iliskiBul(iliskiler, "es") || iliskiBul(iliskiler, "sevgili");
-  return [...iliskiler].reverse().find((i) => i.tur === tur && i.aktif);
-}
-
-function metinDoldur(metin, ctx) {
-  if (!metin) return "";
-  return metin.replace(/\{(\w+)\}/g, (tam, anahtar) => {
-    if (anahtar === "isim") return ctx.karakter.isim;
-    if (anahtar === "birlikteYil") {
-      const p = iliskiBul(ctx.iliskiler, "partner");
-      return String(Math.max(1, ctx.yas - (p ? p.baslangic : ctx.yas - 1)));
-    }
-    const iliski = iliskiBul(ctx.iliskiler, anahtar);
-    if (iliski) return iliski.ad;
-    return YEDEK_AD[anahtar] || tam;
-  });
-}
-
-/* Olay uygunluk kontrolü */
-function olayUygunMu(e, ctx) {
-  const stage = stageOf(ctx.yas);
-  if (!e.stages.includes(stage) && !e.stages.includes("hepsi")) return false;
-  if (e.kaosOnly && ctx.mode !== "kaos") return false;
-  if (e.tekSefer && ctx.gorulen.includes(e.id)) return false;
-  const g = e.gerek;
-  if (g) {
-    if (g.bayrak && !g.bayrak.every((b) => ctx.bayraklar.includes(b))) return false;
-    if (g.yokBayrak && g.yokBayrak.some((b) => ctx.bayraklar.includes(b))) return false;
-    if (g.iliski && !iliskiBul(ctx.iliskiler, g.iliski)) return false;
-    if (g.yokIliski && iliskiBul(ctx.iliskiler, g.yokIliski)) return false;
-  }
-  return true;
-}
-
-function olayAgirligi(e, ctx) {
-  let w = e.agirlik || 1;
-  if (ctx.mode === "romantik" && e.cat === "ask") w *= 3;
-  if (ctx.mode === "fakir" && e.cat === "para") w *= 2;
-  if (ctx.mode === "kaos" && e.kaosOnly) w *= 2;
-  if (ctx.karakter.meslek === "doktor" && e.cat === "saglik") w *= 1.5;
-  if (ctx.karakter.meslek === "girisimci" && e.cat === "para") w *= 1.5;
-  if (ctx.karakter.meslek === "sanatci" && e.cat === "hayat") w *= 1.5;
-  return Math.max(1, Math.round(w));
-}
-
-function olaySec(ctx, recent) {
-  let havuz = EVENTS.filter((e) => olayUygunMu(e, ctx) && !recent.includes(e.id));
-  if (havuz.length === 0) havuz = EVENTS.filter((e) => olayUygunMu(e, ctx));
-  if (havuz.length === 0) havuz = EVENTS.filter((e) => e.stages.includes("hepsi") && !e.kaosOnly);
-  const agirlikli = [];
-  havuz.forEach((e) => {
-    const w = olayAgirligi(e, ctx);
-    for (let i = 0; i < w; i++) agirlikli.push(e);
-  });
-  return rastgele(agirlikli);
-}
-
-/* ---------- Seçim motoru ---------- */
-function fxBirlestir(hedef, ek) {
-  if (!ek) return hedef;
-  Object.keys(ek).forEach((k) => {
-    hedef[k] = (hedef[k] || 0) + ek[k];
-  });
-  return hedef;
-}
-
-function riskOrani(secenek, ctx) {
-  let p = secenek.riskli;
-  const k = ctx.karakter;
-  if (k.kisilikler.includes("kurnaz")) p -= 0.08;
-  if (k.kisilikler.includes("hirsli")) p -= 0.05;
-  if (k.kisilikler.includes("umursamaz")) p += 0.07;
-  if (k.kisilikler.includes("cesur")) p -= 0.04;
-  if (k.meslek === "girisimci") p -= 0.08;
-  return Math.max(0.05, Math.min(0.9, p));
-}
-
-function tonCumlesi(stats) {
-  const kural = TON_KURALLARI.find((t) => t.test(stats));
-  if (!kural || Math.random() > 0.5) return null;
-  return rastgele(kural.cumleler);
-}
-
-/**
- * Bir seçeneğin sonucunu hesaplar: kişilik + meslek etkilerini uygular,
- * riskli seçimlerde başarı/başarısızlık belirler, anlatıyı kurar.
- */
-function secimiHesapla(secenek, ctx) {
-  const { kisilikler, meslek } = ctx.karakter;
-  const etiketler = secenek.etiketler || [];
-  const basarisiz = secenek.riskli ? Math.random() < riskOrani(secenek, ctx) : false;
-  const kaynak = basarisiz && secenek.kotu ? secenek.kotu : secenek;
-
-  const fx = { ...(kaynak.fx || {}) };
-  let paraCarpan = 1;
-  const kisilikNotMap = new Map(); // bir özellik tek sonuçta en fazla bir cümle söyler
-  const meslekNotlari = [];
-
-  etiketler.forEach((etiket) => {
-    kisilikler.forEach((k) => {
-      const etki = KISILIK_ETKI[k] && KISILIK_ETKI[k][etiket];
-      if (!etki) return;
-      fxBirlestir(fx, etki.fx);
-      if (etki.paraCarpan) paraCarpan *= etki.paraCarpan;
-      if (etki.not && !kisilikNotMap.has(k)) kisilikNotMap.set(k, etki.not);
-    });
-    const mEtki = MESLEK_ETKI[meslek] && MESLEK_ETKI[meslek][etiket];
-    if (mEtki) {
-      fxBirlestir(fx, mEtki.fx);
-      if (mEtki.paraCarpan) paraCarpan *= mEtki.paraCarpan;
-      if (mEtki.not) {
-        if (MESLEK_IMZA_ETIKETLERI.includes(etiket)) meslekNotlari.unshift(mEtki.not);
-        else meslekNotlari.push(mEtki.not);
-      }
-    }
-  });
-
-  /* Anlatı şişmesin: en fazla iki not. Meslek notu varsa yeri garanti. */
-  const kisilikNotlari = Array.from(kisilikNotMap.values());
-  const notlar = meslekNotlari.length
-    ? [kisilikNotlari[0], meslekNotlari[0]].filter(Boolean)
-    : kisilikNotlari.slice(0, 2);
-
-  // Kaos modunda her etki savrulur
-  if (ctx.mode === "kaos") {
-    Object.keys(fx).forEach((k) => {
-      fx[k] = Math.round(fx[k] * (0.6 + Math.random()));
-    });
-  }
-
-  const hamPara = kaynak.para || 0;
-  const dpara = Math.round(hamPara > 0 ? hamPara * paraCarpan : hamPara);
-
-  // Anlatı: kişiliğe özel varyant varsa onu kullan
-  let anlati = kaynak.sonuc;
-  if (!basarisiz && secenek.sonucKisilik) {
-    const eslesen = kisilikler.find((k) => secenek.sonucKisilik[k]);
-    if (eslesen) anlati = secenek.sonucKisilik[eslesen];
-  }
-
-  return { fx, dpara, anlati, notlar, basarisiz };
-}
-
-/* ---------- Bitiş: hayat hikayesi ---------- */
-function hayatHikayesi(ctx, skor) {
-  const { karakter, bayraklar, iliskiler, stats, yas } = ctx;
-  const koken = KOKENLER.find((k) => k.key === karakter.koken);
-  const meslek = MESLEKLER.find((m) => m.key === karakter.meslek);
-  const kisilikAdlari = karakter.kisilikler.map((k) =>
-    KISILIKLER.find((x) => x.key === k).ad.toLowerCase(),
-  );
-  const cumleler = [];
-
-  cumleler.push(
-    `${karakter.isim}, ${koken.hikaye} başlayan bir hayatı ${yas} yıl taşıdı; ${kisilikAdlari.join(" ve ")} bir insandı ve bu iki huy neredeyse bütün dönüm noktalarında masadaydı.`,
-  );
-
-  if (karakter.meslek !== "belirsiz") {
-    cumleler.push(
-      stats.kariyer >= 60
-        ? `İçindeki ${meslek.ad.toLowerCase()} olma isteğini bastırmadı; yaptığı işte adı anıldı, emeği karşılığını buldu.`
-        : `${meslek.ad} olmak istemişti; hayat başka yerlere savurdu ama o eğilim seçimlerinin arasında hep bir yerlerde durdu.`,
-    );
-  } else {
-    cumleler.push(
-      "Ne olmak istediğine hiçbir zaman tam karar vermedi ve tuhaf biçimde bu belirsizlik onu hep yeni kapılara götürdü.",
-    );
-  }
-
-  const romantik = iliskiler.filter((i) => i.tur === "sevgili" || i.tur === "es");
-  const es = iliskiler.find((i) => i.tur === "es");
-  if (es && !bayraklar.includes("bosandi")) {
-    cumleler.push(`${es.ad} ile kurduğu hayat, en uzun süren ve en çok emek verdiği şeydi.`);
-  } else if (bayraklar.includes("bosandi")) {
-    cumleler.push(
-      `Bir evlilik kurdu ve dağıldığını gördü; o kırılma sonraki her ilişkisinin bir yerinde iz bıraktı.`,
-    );
-  } else if (romantik.length > 0) {
-    cumleler.push(
-      `${romantik.length} kez ciddi biçimde sevdi, hiçbirinde yarım kalmayı seçmedi ama hiçbiri de kalıcı olmadı.`,
-    );
-  } else {
-    cumleler.push(
-      "Aşk, hayatına hep uzaktan uğradı; kapıyı çaldığı zamanlarda ya evde yoktu ya da açmadı.",
-    );
-  }
-
-  if (bayraklar.includes("cocukVar")) {
-    const c = iliskiler.find((i) => i.tur === "cocuk");
-    cumleler.push(`${c ? c.ad : "Çocuğu"}, geriye bıraktığı en canlı hikâyeydi.`);
-  }
-  if (bayraklar.includes("kacak"))
-    cumleler.push("Kapatmadığı bir borç yüzünden yıllarca omzunun üstünden arkasına baktı.");
-  else if (bayraklar.includes("borcOdendi"))
-    cumleler.push("Bir dönem borcun altında ezildi ama o borcu kendi eliyle kapattı.");
-  if (bayraklar.includes("kendiIsi"))
-    cumleler.push(
-      "Kendi kurduğu işin ayakta durduğunu görmek, aldığı en büyük risklerin karşılığıydı.",
-    );
-  if (bayraklar.includes("terapi"))
-    cumleler.push("Bir noktada kendine bakmayı öğrendi; bunu yapmak cesaret istedi.");
-  if (bayraklar.includes("birakti"))
-    cumleler.push(
-      "Yıllar süren bir alışkanlığı geç de olsa bıraktı ve bedeni ona bunun için teşekkür etti.",
-    );
-
-  const enYuksek = [...STATS].sort((a, b) => stats[b.key] - stats[a.key])[0];
-  const enDusuk = [...STATS].sort((a, b) => stats[a.key] - stats[b.key])[0];
-  cumleler.push(
-    `Geriye dönüp bakıldığında en zengin olduğu yer ${enYuksek.label.toLowerCase()}, en aç kaldığı yer ${enDusuk.label.toLowerCase()} oldu.`,
-  );
-
-  cumleler.push(
-    skor >= 80
-      ? "Sonunda geriye pişmanlıktan çok anı kaldı — ve anlatacak birileri hep vardı."
-      : skor >= 55
-        ? "Ne destansı ne de boşa geçmiş; sıradan olanı hakkıyla yaşamış bir ömürdü."
-        : "Zor bir yoldu ve çoğu zaman yalnız yürüdü; yine de sonuna kadar yürüdü.",
-  );
-
-  return cumleler.join(" ");
-}
-
-/* =====================================================================
-   ANA BİLEŞEN
-===================================================================== */
-export default function HayatSimulatoru() {
-  /* ekran akışı: olustur (adım adım) -> game -> over */
-  const [screen, setScreen] = useState("olustur");
-  const [adim, setAdim] = useState(0);
-
-  /* karakter oluşturma alanları */
-  const [isim, setIsim] = useState("");
-  const [cinsiyet, setCinsiyet] = useState("belirsiz");
-  const [baslangic, setBaslangic] = useState("cocuk");
-  const [koken, setKoken] = useState("orta");
-  const [meslek, setMeslek] = useState("belirsiz");
-  const [kisilikler, setKisilikler] = useState([]);
-
-  /* oyun durumu */
-  const [karakter, setKarakter] = useState(null);
-  const [mode, setMode] = useState(null);
-  const [yas, setYas] = useState(0);
-  const [omur, setOmur] = useState(80);
-  const [stats, setStats] = useState(null);
-  const [para, setPara] = useState(0);
-  const [ev, setEv] = useState(null);
-  const [recent, setRecent] = useState([]);
-  const [gorulen, setGorulen] = useState([]);
-  const [bayraklar, setBayraklar] = useState([]);
-  const [iliskiler, setIliskiler] = useState([]);
-  const [sonuc, setSonuc] = useState(null);
-  const [gunluk, setGunluk] = useState([]);
-  const [olumSebep, setOlumSebep] = useState("");
-
-  const ctxOlustur = (ekler = {}) => ({
-    yas,
-    stats,
-    para,
-    mode,
-    karakter,
-    bayraklar,
-    iliskiler,
-    gorulen,
-    ...ekler,
-  });
-
-  /* ---------- Oyunu başlat ---------- */
-  function baslat(m) {
-    const secilenBaslangic = BASLANGICLAR.find((b) => b.key === baslangic);
-    const secilenKoken = KOKENLER.find((k) => k.key === koken);
-    const secilenMeslek = MESLEKLER.find((k) => k.key === meslek);
-
-    const yeniKarakter = {
-      isim: isim.trim() || "Sen",
-      cinsiyet,
-      baslangic,
-      koken,
-      meslek,
-      kisilikler: kisilikler.length ? kisilikler : ["cesur", "durust"],
-    };
-
-    /* başlangıç statları: mod + köken + meslek + yaş + kişilikler */
-    const ilkStats = { ...m.start };
-    [secilenBaslangic.fx, secilenKoken.fx, secilenMeslek.fx].forEach((fx) =>
-      fxBirlestir(ilkStats, fx),
-    );
-    yeniKarakter.kisilikler.forEach((k) => {
-      const kis = KISILIKLER.find((x) => x.key === k);
-      if (kis) fxBirlestir(ilkStats, kis.fx);
-    });
-    Object.keys(ilkStats).forEach((k) => (ilkStats[k] = clamp(ilkStats[k])));
-
-    const ilkPara = Math.round(m.para * secilenKoken.paraCarpan + secilenKoken.paraEk);
-
-    let ilkOmur = 72 + Math.floor(Math.random() * 20);
-    ilkOmur += { varlikli: 4, orta: 0, zor: -4, kimsesiz: -6 }[koken] || 0;
-    if (meslek === "sporcu") ilkOmur += 3;
-    if (meslek === "doktor") ilkOmur += 2;
-
-    const baslangicYas = secilenBaslangic.yas;
-    const ilkCtx = {
-      yas: baslangicYas,
-      stats: ilkStats,
-      para: ilkPara,
-      mode: m.key,
-      karakter: yeniKarakter,
-      bayraklar: [],
-      iliskiler: [],
-      gorulen: [],
-    };
-
-    setKarakter(yeniKarakter);
-    setMode(m.key);
-    setStats(ilkStats);
-    setPara(ilkPara);
-    setYas(baslangicYas);
-    setOmur(Math.max(baslangicYas + 12, ilkOmur));
-    setRecent([]);
-    setGorulen([]);
-    setBayraklar([]);
-    setIliskiler([]);
-    setGunluk([]);
-    setSonuc(null);
-    setOlumSebep("");
-    setEv(olaySec(ilkCtx, []));
-    setScreen("game");
-  }
-
-  /* ---------- Bir seçenek seçildi ---------- */
-  function sec(secenek) {
-    const ctx = ctxOlustur();
-    const hesap = secimiHesapla(secenek, ctx);
-
-    /* 1) ilişkiler ve bayraklar güncellenir (metin bunları kullanacak) */
-    let yeniIliskiler = iliskiler;
-    if (secenek.iliskiYukselt) {
-      yeniIliskiler = yeniIliskiler.map((i) =>
-        i.tur === secenek.iliskiYukselt.eski && i.aktif
-          ? { ...i, tur: secenek.iliskiYukselt.yeni }
-          : i,
-      );
-    }
-    if (secenek.iliskiBitir) {
-      yeniIliskiler = yeniIliskiler.map((i) =>
-        i.tur === secenek.iliskiBitir && i.aktif ? { ...i, aktif: false, bitis: yas } : i,
-      );
-    }
-    if (secenek.iliski) {
-      const ad = iliskiIsmiUret(
-        secenek.iliski.tur,
-        karakter.cinsiyet,
-        yeniIliskiler.map((i) => i.ad),
-      );
-      yeniIliskiler = [
-        ...yeniIliskiler,
-        {
-          id: `${ev.id}-${yas}`,
-          ad,
-          tur: secenek.iliski.tur,
-          ilkAsk: !!secenek.iliski.ilkAsk,
-          baslangic: yas,
-          aktif: true,
-        },
-      ];
-    }
-    const yeniBayraklar = secenek.bayrak
-      ? Array.from(new Set([...bayraklar, ...secenek.bayrak]))
-      : bayraklar;
-
-    /* 2) statlar */
-    const yeniStats = { ...stats };
-    Object.keys(hesap.fx).forEach((k) => {
-      if (k in yeniStats) yeniStats[k] = clamp(yeniStats[k] + hesap.fx[k]);
-    });
-    const yeniPara = para + hesap.dpara;
-
-    /* 3) anlatı: gövde + kişilik/meslek notları + kritik stat tonu */
-    const yeniCtx = {
-      ...ctx,
-      iliskiler: yeniIliskiler,
-      bayraklar: yeniBayraklar,
-      stats: yeniStats,
-    };
-    const parcalar = [metinDoldur(hesap.anlati, yeniCtx), ...hesap.notlar];
-    const ton = tonCumlesi(yeniStats);
-    if (ton) parcalar.push(ton);
-    const metin = parcalar.join(" ");
-
-    setIliskiler(yeniIliskiler);
-    setBayraklar(yeniBayraklar);
-    setStats(yeniStats);
-    setPara(yeniPara);
-    setGorulen((g) => (g.includes(ev.id) ? g : [...g, ev.id]));
-    setSonuc({
-      metin,
-      fx: hesap.fx,
-      dpara: hesap.dpara,
-      emoji: ev.emoji,
-      basarisiz: hesap.basarisiz,
-    });
-    setGunluk((g) => [
-      {
-        yas,
-        emoji: ev.emoji,
-        baslik: ev.baslik,
-        secim: secenek.t,
-        metin,
-        onemli: !!secenek.onemli,
-      },
-      ...g,
-    ]);
-  }
-
-  /* ---------- Sonraki olaya geç ---------- */
-  function devam() {
-    const yeniRecent = [ev.id, ...recent].slice(0, 8);
-    const artis = yas < 13 ? 2 + Math.floor(Math.random() * 2) : 2 + Math.floor(Math.random() * 3);
-    const yeniYas = yas + artis;
-
-    if (stats.saglik <= 0) return bitir("Sağlığın tükendi.");
-    if (stats.saglik <= 12 && Math.random() < 0.3) return bitir("Bedenin daha fazla dayanamadı.");
-    if (yeniYas >= omur) return bitir("Yaşlılığın huzuruyla gözlerini kapadın.");
-
-    const yeniCtx = ctxOlustur({ yas: yeniYas });
-    setYas(yeniYas);
-    setRecent(yeniRecent);
-    setSonuc(null);
-    setEv(olaySec(yeniCtx, yeniRecent));
-  }
-
-  function bitir(sebep) {
-    setOlumSebep(sebep);
-    setScreen("over");
-  }
-
-  function yenidenBasla() {
-    setScreen("olustur");
-    setAdim(0);
-    setKisilikler([]);
-  }
-
-  function kisilikSec(key) {
-    setKisilikler((mevcut) => {
-      if (mevcut.includes(key)) return mevcut.filter((k) => k !== key);
-      if (mevcut.length >= 2) return [mevcut[1], key];
-      return [...mevcut, key];
-    });
-  }
-
-  /* ================= KARAKTER OLUŞTURMA ================= */
-  if (screen === "olustur") {
-    const ileriAktif = adim !== 4 || kisilikler.length === 2;
-    const secilenBaslangic = BASLANGICLAR.find((b) => b.key === baslangic);
-    const secilenKoken = KOKENLER.find((k) => k.key === koken);
-    const secilenMeslek = MESLEKLER.find((m) => m.key === meslek);
-
-    return (
-      <Shell>
-        {adim === 0 && (
-          <div style={{ textAlign: "center", paddingTop: 4, marginBottom: 18 }}>
-            <div
-              style={{ fontSize: 13, letterSpacing: 3, color: C.muted, textTransform: "uppercase" }}
-            >
-              bir hayat, sayısız yol
-            </div>
-            <h1
-              style={{
-                fontFamily: serif,
-                fontSize: 40,
-                margin: "6px 0 0",
-                color: C.cream,
-                fontWeight: 700,
-                lineHeight: 1.05,
-              }}
-            >
-              Hayat
-              <br />
-              <span style={{ color: C.gold, fontStyle: "italic" }}>Simülatörü</span>
-            </h1>
-          </div>
-        )}
-
-        <AdimGostergesi adim={adim} />
-
-        {/* --- 0: isim + cinsiyet --- */}
-        {adim === 0 && (
-          <div>
-            <label style={etiketStyle}>Adın</label>
-            <input
-              value={isim}
-              onChange={(e) => setIsim(e.target.value)}
-              placeholder="Adını yaz..."
-              maxLength={16}
-              style={inputStyle}
-            />
-            <label style={{ ...etiketStyle, marginTop: 18 }}>Cinsiyet</label>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {CINSIYETLER.map((c) => (
-                <Pill key={c.key} secili={cinsiyet === c.key} onClick={() => setCinsiyet(c.key)}>
-                  {c.emoji} {c.ad}
-                </Pill>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* --- 1: başlangıç yaşı --- */}
-        {adim === 1 && (
-          <StepBlok
-            baslik="Hayata nereden başlıyorsun?"
-            alt="Seçtiğin yaş, göreceğin olayları belirler."
-          >
-            {BASLANGICLAR.map((b) => (
-              <SecimKarti
-                key={b.key}
-                emoji={b.emoji}
-                ad={`${b.ad} (${b.yas})`}
-                aciklama={b.aciklama}
-                secili={baslangic === b.key}
-                onClick={() => setBaslangic(b.key)}
-              />
-            ))}
-          </StepBlok>
-        )}
-
-        {/* --- 2: köken --- */}
-        {adim === 2 && (
-          <StepBlok
-            baslik="Nasıl bir evde açtın gözünü?"
-            alt="Başlangıç paranı ve statlarını etkiler."
-          >
-            {KOKENLER.map((k) => (
-              <SecimKarti
-                key={k.key}
-                emoji={k.emoji}
-                ad={k.ad}
-                aciklama={k.aciklama}
-                secili={koken === k.key}
-                onClick={() => setKoken(k.key)}
-              />
-            ))}
-          </StepBlok>
-        )}
-
-        {/* --- 3: meslek eğilimi --- */}
-        {adim === 3 && (
-          <StepBlok baslik="İçinden gelen ne?" alt="Kariyer ve para olaylarında sana bonus verir.">
-            {MESLEKLER.map((m) => (
-              <SecimKarti
-                key={m.key}
-                emoji={m.emoji}
-                ad={m.ad}
-                aciklama={m.aciklama}
-                secili={meslek === m.key}
-                onClick={() => setMeslek(m.key)}
-              />
-            ))}
-          </StepBlok>
-        )}
-
-        {/* --- 4: kişilik --- */}
-        {adim === 4 && (
-          <StepBlok
-            baslik="Sen nasıl birisin?"
-            alt={`İki özellik seç. (${kisilikler.length}/2) Seçimlerinin sonuçlarını ömür boyu değiştirirler.`}
-          >
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {KISILIKLER.map((k) => (
-                <Pill
-                  key={k.key}
-                  secili={kisilikler.includes(k.key)}
-                  onClick={() => kisilikSec(k.key)}
-                >
-                  {k.emoji} {k.ad}
-                </Pill>
-              ))}
-            </div>
-            <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
-              {kisilikler.map((key) => {
-                const k = KISILIKLER.find((x) => x.key === key);
-                return (
-                  <div key={key} style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.4 }}>
-                    <b style={{ color: C.cream }}>{k.ad}:</b> {k.aciklama}
-                  </div>
-                );
-              })}
-            </div>
-          </StepBlok>
-        )}
-
-        {/* --- 5: mod + özet --- */}
-        {adim === 5 && (
-          <div>
-            <div style={{ ...cardStyle, marginBottom: 14, padding: "14px 16px" }}>
-              <div style={{ fontFamily: serif, fontSize: 20, fontWeight: 700, color: C.cream }}>
-                {isim.trim() || "Sen"}
-              </div>
-              <div style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.6, marginTop: 4 }}>
-                {CINSIYETLER.find((c) => c.key === cinsiyet).ad} · {secilenBaslangic.ad} (
-                {secilenBaslangic.yas} yaş)
-                <br />
-                {secilenKoken.emoji} {secilenKoken.ad} · {secilenMeslek.emoji} {secilenMeslek.ad}
-                <br />
-                {kisilikler
-                  .map((k) => {
-                    const x = KISILIKLER.find((y) => y.key === k);
-                    return `${x.emoji} ${x.ad}`;
-                  })
-                  .join(" · ")}
-              </div>
-            </div>
-
-            <div style={{ fontSize: 13, color: C.muted, marginBottom: 10 }}>
-              Bir hayat seç ve başla
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {MODES.map((m) => (
-                <button
-                  key={m.key}
-                  onClick={() => baslat(m)}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 14,
-                    textAlign: "left",
-                    padding: "14px 16px",
-                    borderRadius: 16,
-                    cursor: "pointer",
-                    background: C.card,
-                    border: `1px solid ${C.cardEdge}`,
-                    color: C.cream,
-                    transition: "transform .12s, border-color .12s",
-                  }}
-                  onMouseDown={(e) => (e.currentTarget.style.transform = "scale(.98)")}
-                  onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                  onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
-                >
-                  <span style={{ fontSize: 30 }}>{m.emoji}</span>
-                  <span style={{ flex: 1 }}>
-                    <span style={{ fontFamily: serif, fontSize: 18, fontWeight: 700 }}>{m.ad}</span>
-                    <span
-                      style={{ display: "block", fontSize: 12.5, color: C.muted, marginTop: 2 }}
-                    >
-                      {m.aciklama}
-                    </span>
-                  </span>
-                  <ChevronRight size={18} color={C.muted} />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* --- gezinme --- */}
-        <div style={{ display: "flex", gap: 10, marginTop: 22, alignItems: "center" }}>
-          {adim > 0 && (
-            <button
-              onClick={() => setAdim(adim - 1)}
-              style={{
-                ...secenekStyle,
-                width: "auto",
-                display: "flex",
-                alignItems: "center",
-                gap: 4,
-                color: C.muted,
-                padding: "12px 14px",
-              }}
-            >
-              <ChevronLeft size={16} /> Geri
-            </button>
-          )}
-          {adim < 5 && (
-            <button
-              onClick={() => ileriAktif && setAdim(adim + 1)}
-              disabled={!ileriAktif}
-              style={{
-                ...secenekStyle,
-                flex: 1,
-                background: ileriAktif ? C.gold : "#00000022",
-                color: ileriAktif ? "#2b1d00" : C.muted,
-                borderColor: ileriAktif ? C.gold : C.cardEdge,
-                fontWeight: 700,
-                textAlign: "center",
-                cursor: ileriAktif ? "pointer" : "default",
-              }}
-            >
-              {adim === 4 && !ileriAktif ? "İki özellik seç" : "Devam →"}
-            </button>
-          )}
-        </div>
-      </Shell>
-    );
-  }
-
-  /* ================= OYUN ================= */
-  if (screen === "game" && ev && stats && karakter) {
-    const ctx = ctxOlustur();
-    const aktifIliskiler = iliskiler.filter((i) => i.aktif);
-
-    return (
-      <Shell>
-        {/* üst bilgi */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "baseline",
-            justifyContent: "space-between",
-            marginBottom: 10,
-          }}
-        >
-          <div>
-            <div style={{ fontFamily: serif, fontSize: 22, fontWeight: 700, color: C.cream }}>
-              {karakter.isim}
-            </div>
-            <div style={{ fontSize: 12.5, color: C.muted }}>{stageEtiket(yas)}</div>
-          </div>
-          <div style={{ textAlign: "right" }}>
-            <div
-              style={{
-                fontFamily: serif,
-                fontSize: 30,
-                fontWeight: 700,
-                color: C.gold,
-                lineHeight: 1,
-              }}
-            >
-              {yas}
-            </div>
-            <div style={{ fontSize: 11, color: C.muted }}>yaşında</div>
-          </div>
-        </div>
-
-        {/* kişilik + meslek rozetleri */}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-          {karakter.kisilikler.map((k) => {
-            const x = KISILIKLER.find((y) => y.key === k);
-            return (
-              <MiniRozet key={k}>
-                {x.emoji} {x.ad}
-              </MiniRozet>
-            );
-          })}
-          {karakter.meslek !== "belirsiz" && (
-            <MiniRozet>
-              {MESLEKLER.find((m) => m.key === karakter.meslek).emoji}{" "}
-              {MESLEKLER.find((m) => m.key === karakter.meslek).ad}
-            </MiniRozet>
-          )}
-        </div>
-
-        {/* para */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-          <Coins size={15} color={C.gold} />
-          <span style={{ fontSize: 14, fontWeight: 600, color: para < 0 ? "#ff8080" : C.cream }}>
-            {paraFmt(para)}
-          </span>
-        </div>
-
-        {/* statlar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-          {STATS.map((s) => (
-            <StatBar
-              key={s.key}
-              label={s.label}
-              value={stats[s.key]}
-              color={s.color}
-              Icon={s.Icon}
-            />
-          ))}
-        </div>
-
-        {/* kalıcı ilişkiler */}
-        {aktifIliskiler.length > 0 && (
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 }}>
-            {aktifIliskiler.map((i) => (
-              <MiniRozet key={i.id} renk={ILISKI_RENK[i.tur]}>
-                {ILISKI_EMOJI[i.tur]} {i.ad}
-                {yas - i.baslangic > 0 ? ` · ${yas - i.baslangic} yıl` : ""}
-              </MiniRozet>
-            ))}
-          </div>
-        )}
-
-        {/* olay ya da sonuç */}
-        {!sonuc ? (
-          <div style={cardStyle}>
-            <div style={{ fontSize: 34, marginBottom: 6 }}>{ev.emoji}</div>
-            <div
-              style={{
-                fontSize: 12,
-                letterSpacing: 2,
-                textTransform: "uppercase",
-                color: C.muted,
-                marginBottom: 8,
-              }}
-            >
-              {ev.baslik}
-            </div>
-            <p
-              style={{
-                fontFamily: serif,
-                fontSize: 18,
-                lineHeight: 1.5,
-                color: C.cream,
-                margin: "0 0 18px",
-              }}
-            >
-              {metinDoldur(ev.metin, ctx)}
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {ev.secenekler.map((sc, i) => (
-                <button key={i} onClick={() => sec(sc)} style={secenekStyle}>
-                  {sc.t}
-                  {sc.riskli ? (
-                    <span style={{ color: C.gold, fontSize: 12 }}> · riskli</span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div style={cardStyle}>
-            <div style={{ fontSize: 34, marginBottom: 10 }}>
-              {sonuc.basarisiz ? "💥" : sonuc.emoji}
-            </div>
-            <p
-              style={{
-                fontFamily: serif,
-                fontSize: 17,
-                lineHeight: 1.62,
-                color: C.cream,
-                margin: "0 0 16px",
-              }}
-            >
-              {sonuc.metin}
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 18 }}>
-              {Object.keys(sonuc.fx)
-                .filter((k) => STATS.some((s) => s.key === k) && sonuc.fx[k] !== 0)
-                .map((k) => (
-                  <Chip key={k} label={STATS.find((s) => s.key === k).label} delta={sonuc.fx[k]} />
-                ))}
-              {sonuc.dpara !== 0 && <Chip label="Para" delta={sonuc.dpara} para />}
-            </div>
-            <button
-              onClick={devam}
-              style={{
-                ...secenekStyle,
-                background: C.gold,
-                color: "#2b1d00",
-                fontWeight: 700,
-                borderColor: C.gold,
-                textAlign: "center",
-              }}
-            >
-              Devam et →
-            </button>
-          </div>
-        )}
-      </Shell>
-    );
-  }
-
-  /* ================= BİTİŞ ================= */
-  if (screen === "over" && stats && karakter) {
-    const ort = Math.round(STATS.reduce((a, s) => a + stats[s.key], 0) / STATS.length);
-    const paraPuan = Math.max(-10, Math.min(20, Math.round(para / 20000)));
-    const skor = Math.max(0, Math.min(100, ort + paraPuan));
-    const unvan = unvanBul(skor, stats, para, karakter);
-
-    const siraliStatlar = [...STATS].sort((a, b) => stats[b.key] - stats[a.key]);
-    const enYuksek = siraliStatlar[0];
-    const enDusuk = siraliStatlar[siraliStatlar.length - 1];
-
-    const romantik = iliskiler.filter((i) => i.tur === "sevgili" || i.tur === "es");
-    const arkadaslar = iliskiler.filter((i) => i.tur === "arkadas");
-    const rakipler = iliskiler.filter((i) => i.tur === "rakip");
-    const onemliAnlar = gunluk
-      .filter((g) => g.onemli)
-      .slice()
-      .reverse();
-    const hikaye = hayatHikayesi(ctxOlustur(), skor);
-
-    return (
-      <Shell>
-        <div style={{ textAlign: "center", paddingTop: 6, marginBottom: 18 }}>
-          <div style={{ fontSize: 44, marginBottom: 4 }}>🕯️</div>
-          <div
-            style={{ fontSize: 12, letterSpacing: 3, textTransform: "uppercase", color: C.muted }}
-          >
-            hayat sona erdi
-          </div>
-          <h1 style={{ fontFamily: serif, fontSize: 30, color: C.cream, margin: "6px 0 2px" }}>
-            {karakter.isim}
-          </h1>
-          <div style={{ fontSize: 14, color: C.muted }}>
-            {yas} yıl yaşadı · {olumSebep}
-          </div>
-        </div>
-
-        <div style={{ ...cardStyle, textAlign: "center", marginBottom: 14 }}>
-          <div
-            style={{
-              fontSize: 12,
-              letterSpacing: 2,
-              textTransform: "uppercase",
-              color: C.muted,
-              marginBottom: 4,
-            }}
-          >
-            hayat puanı
-          </div>
-          <div
-            style={{
-              fontFamily: serif,
-              fontSize: 52,
-              fontWeight: 700,
-              color: C.gold,
-              lineHeight: 1,
-            }}
-          >
-            {skor}
-          </div>
-          <div
-            style={{
-              fontFamily: serif,
-              fontStyle: "italic",
-              fontSize: 18,
-              color: C.cream,
-              marginTop: 6,
-            }}
-          >
-            “{unvan}”
-          </div>
-        </div>
-
-        {/* hayat hikayesi */}
-        <div style={{ ...cardStyle, marginBottom: 14 }}>
-          <div
-            style={{
-              fontSize: 12,
-              letterSpacing: 2,
-              textTransform: "uppercase",
-              color: C.muted,
-              marginBottom: 8,
-            }}
-          >
-            hayat hikayesi
-          </div>
-          <p
-            style={{ fontFamily: serif, fontSize: 16, lineHeight: 1.65, color: C.cream, margin: 0 }}
-          >
-            {hikaye}
-          </p>
-        </div>
-
-        {/* künye */}
-        <div style={{ ...cardStyle, marginBottom: 14, padding: "16px 18px" }}>
-          <KunyeSatir
-            etiket="En güçlü yanı"
-            deger={`${enYuksek.label} (${stats[enYuksek.key]})`}
-            renk={enYuksek.color}
-          />
-          <KunyeSatir
-            etiket="En zayıf yanı"
-            deger={`${enDusuk.label} (${stats[enDusuk.key]})`}
-            renk={enDusuk.color}
-          />
-          <KunyeSatir
-            etiket="Aşk hayatı"
-            deger={romantik.length ? `${romantik.length} ciddi ilişki` : "hiç yaşanmadı"}
-          />
-          <KunyeSatir
-            etiket="Yol arkadaşları"
-            deger={`${arkadaslar.length} dost · ${rakipler.length} rakip`}
-          />
-          <KunyeSatir
-            etiket="Geriye kalan"
-            deger={paraFmt(para)}
-            renk={para < 0 ? "#ff8080" : C.gold}
-          />
-        </div>
-
-        {/* statlar */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 16 }}>
-          {STATS.map((s) => (
-            <StatBar
-              key={s.key}
-              label={s.label}
-              value={stats[s.key]}
-              color={s.color}
-              Icon={s.Icon}
-            />
-          ))}
-        </div>
-
-        {/* önemli kararlar zaman çizelgesi */}
-        {onemliAnlar.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div
-              style={{
-                fontSize: 12,
-                letterSpacing: 2,
-                textTransform: "uppercase",
-                color: C.muted,
-                marginBottom: 10,
-              }}
-            >
-              dönüm noktaları
-            </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {onemliAnlar.map((g, i) => (
-                <div key={i} style={{ display: "flex", gap: 10 }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                    <span style={{ fontSize: 15 }}>{g.emoji}</span>
-                    {i < onemliAnlar.length - 1 && (
-                      <span style={{ flex: 1, width: 1, background: C.cardEdge, marginTop: 2 }} />
-                    )}
-                  </div>
-                  <div style={{ paddingBottom: 12 }}>
-                    <div style={{ fontSize: 12.5, color: C.gold, fontWeight: 600 }}>
-                      {g.yas} yaş · {g.baslik}
-                    </div>
-                    <div style={{ fontSize: 12.5, color: C.cream, marginTop: 1 }}>{g.secim}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* kesitler */}
-        {gunluk.length > 0 && (
-          <div style={{ marginBottom: 16 }}>
-            <div
-              style={{
-                fontSize: 12,
-                letterSpacing: 2,
-                textTransform: "uppercase",
-                color: C.muted,
-                marginBottom: 8,
-              }}
-            >
-              hayatından kesitler
-            </div>
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 8,
-                maxHeight: 220,
-                overflowY: "auto",
-              }}
-            >
-              {gunluk.slice(0, 10).map((g, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    gap: 8,
-                    fontSize: 12.5,
-                    color: C.muted,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  <span>{g.emoji}</span>
-                  <span>
-                    <b style={{ color: C.cream }}>{g.yas}:</b> {g.metin}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <button
-          onClick={yenidenBasla}
-          style={{
-            ...secenekStyle,
-            background: C.gold,
-            color: "#2b1d00",
-            fontWeight: 700,
-            borderColor: C.gold,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 8,
-          }}
-        >
-          <RotateCcw size={17} /> Yeni bir hayat
-        </button>
-      </Shell>
-    );
-  }
-
-  return null;
-}
-
-/* =====================================================================
-   KÜÇÜK BİLEŞENLER
-===================================================================== */
-const ADIM_BASLIKLARI = ["Kimlik", "Başlangıç", "Köken", "Eğilim", "Kişilik", "Hayat"];
-
-const ILISKI_EMOJI = {
-  sevgili: "💞",
-  es: "💍",
-  arkadas: "🫂",
-  rakip: "⚔️",
-  cocuk: "🧒",
-  kopek: "🐾",
-};
-
-const ILISKI_RENK = {
-  sevgili: C.rose,
-  es: C.rose,
-  arkadas: C.teal,
-  rakip: "#ff9090",
-  cocuk: C.gold,
-  kopek: C.green,
-};
-
-function Shell({ children }) {
-  return (
-    <div
-      style={{
-        minHeight: "100vh",
-        width: "100%",
-        background: `linear-gradient(160deg, ${C.bg1}, ${C.bg2})`,
-        fontFamily: sans,
-        display: "flex",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{ width: "100%", maxWidth: 440, padding: "26px 20px 40px", boxSizing: "border-box" }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function AdimGostergesi({ adim }) {
-  return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ display: "flex", gap: 5, marginBottom: 7 }}>
-        {ADIM_BASLIKLARI.map((_, i) => (
-          <span
-            key={i}
-            style={{
-              flex: 1,
-              height: 3,
-              borderRadius: 3,
-              background: i <= adim ? C.gold : C.cardEdge,
-              transition: "background .3s",
-            }}
-          />
-        ))}
-      </div>
-      <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: C.muted }}>
-        {adim + 1}/{ADIM_BASLIKLARI.length} · {ADIM_BASLIKLARI[adim]}
-      </div>
-    </div>
-  );
-}
-
-function StepBlok({ baslik, alt, children }) {
-  return (
-    <div>
-      <h2
-        style={{
-          fontFamily: serif,
-          fontSize: 23,
-          color: C.cream,
-          margin: "0 0 4px",
-          fontWeight: 700,
-        }}
-      >
-        {baslik}
-      </h2>
-      <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 14, lineHeight: 1.45 }}>
-        {alt}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>{children}</div>
-    </div>
-  );
-}
-
-function SecimKarti({ emoji, ad, aciklama, secili, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 13,
-        textAlign: "left",
-        padding: "13px 15px",
-        borderRadius: 16,
-        cursor: "pointer",
-        background: secili ? "#f5b94214" : C.card,
-        border: `1px solid ${secili ? C.gold : C.cardEdge}`,
-        color: C.cream,
-        transition: "border-color .15s, background .15s",
-      }}
-    >
-      <span style={{ fontSize: 25 }}>{emoji}</span>
-      <span style={{ flex: 1 }}>
-        <span style={{ fontFamily: serif, fontSize: 17, fontWeight: 700 }}>{ad}</span>
-        <span
-          style={{
-            display: "block",
-            fontSize: 12.5,
-            color: C.muted,
-            marginTop: 2,
-            lineHeight: 1.4,
-          }}
-        >
-          {aciklama}
-        </span>
-      </span>
-      {secili && <Check size={18} color={C.gold} />}
-    </button>
-  );
-}
-
-function Pill({ children, secili, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        padding: "9px 14px",
-        borderRadius: 20,
-        cursor: "pointer",
-        fontSize: 13.5,
-        fontFamily: sans,
-        background: secili ? C.gold : "#00000022",
-        color: secili ? "#2b1d00" : C.cream,
-        border: `1px solid ${secili ? C.gold : C.cardEdge}`,
-        fontWeight: secili ? 700 : 500,
-        transition: "background .15s",
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function MiniRozet({ children, renk }) {
-  return (
-    <span
-      style={{
-        fontSize: 11.5,
-        padding: "4px 9px",
-        borderRadius: 20,
-        color: renk || C.muted,
-        background: "#00000026",
-        border: `1px solid ${C.cardEdge}`,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function KunyeSatir({ etiket, deger, renk }) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "baseline",
-        gap: 12,
-        padding: "5px 0",
-      }}
-    >
-      <span style={{ fontSize: 12.5, color: C.muted }}>{etiket}</span>
-      <span style={{ fontSize: 13.5, fontWeight: 600, color: renk || C.cream, textAlign: "right" }}>
-        {deger}
-      </span>
-    </div>
-  );
-}
-
-function StatBar({ label, value, color, Icon }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <Icon size={16} color={color} style={{ flexShrink: 0 }} />
-      <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-          <span style={{ fontSize: 12, color: C.cream }}>{label}</span>
-          <span style={{ fontSize: 11, color: C.muted }}>{value}</span>
-        </div>
-        <div style={{ height: 6, borderRadius: 4, background: "#00000033", overflow: "hidden" }}>
-          <div
-            style={{
-              width: `${value}%`,
-              height: "100%",
-              background: color,
-              borderRadius: 4,
-              transition: "width .5s ease",
-            }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Chip({ label, delta, para }) {
-  const pos = delta >= 0;
-  const txt = para ? (pos ? "+" : "") + paraFmt(delta) : (pos ? "+" : "") + delta + " " + label;
-  return (
-    <span
-      style={{
-        fontSize: 12,
-        fontWeight: 600,
-        padding: "4px 10px",
-        borderRadius: 20,
-        color: pos ? C.green : "#ff9090",
-        background: pos ? "#6ee7a022" : "#ff909022",
-      }}
-    >
-      {txt}
-    </span>
-  );
-}
-
-/* ---------- Ortak stiller ---------- */
-const cardStyle = {
-  background: C.card,
-  border: `1px solid ${C.cardEdge}`,
-  borderRadius: 20,
-  padding: "20px 18px",
-};
-
-const secenekStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "13px 15px",
-  borderRadius: 13,
-  background: "#00000022",
-  border: `1px solid ${C.cardEdge}`,
-  color: C.cream,
-  fontSize: 15,
-  fontFamily: sans,
-  textAlign: "left",
-  cursor: "pointer",
-};
-
-const inputStyle = {
-  width: "100%",
-  boxSizing: "border-box",
-  padding: "13px 15px",
-  borderRadius: 14,
-  background: C.card,
-  border: `1px solid ${C.cardEdge}`,
-  color: C.cream,
-  fontSize: 16,
-  fontFamily: sans,
-  outline: "none",
-};
-
-const etiketStyle = { fontSize: 13, color: C.muted, display: "block", marginBottom: 6 };
-
-/* ---------- Bitiş unvanı ---------- */
-function unvanBul(skor, stats, para, karakter) {
-  if (skor >= 88) return "Dolu dolu yaşanmış bir ömür";
-  if (stats.ask >= 78) return "Sevgiyle dolu bir kalp";
-  if (para >= 500000) return "Servetin gölgesinde bir hayat";
-  if (stats.kariyer >= 78) return "Adı işiyle anılan biri";
-  if (stats.arkadaslik >= 78) return "Dostlarıyla anılan biri";
-  if (stats.saglik >= 80 && skor >= 60) return "Sağlam kalmış bir çınar";
-  if (karakter.kisilikler.includes("hirsli") && skor >= 60) return "Durmayı hiç öğrenemeyen biri";
-  if (karakter.kisilikler.includes("merhametli") && stats.mutluluk >= 60)
-    return "Herkese bir şey bırakan biri";
-  if (skor >= 50) return "Sıradan ama gerçek bir hayat";
-  if (skor >= 30) return "Bir hayli çalkantılı bir yolculuk";
-  return "Zorluklarla geçen bir ömür";
-}
