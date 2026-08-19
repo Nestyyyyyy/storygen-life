@@ -4,48 +4,67 @@ import type { QualityAudit } from "./quality-types";
 export const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
 // --- AI sağlayıcı yapılandırması ---
-// Sağlayıcıdan bağımsız: OpenAI, Google Gemini (OpenAI uyumlu uç), OpenRouter
-// ya da eski Lovable ağ geçidi. Hangisi tanımlıysa o kullanılır.
+// Sağlayıcıdan bağımsız: OpenAI uyumlu /chat/completions ucu veren her servis
+// çalışır (OpenAI, Google Gemini uyumluluk ucu, OpenRouter, kendi ağ geçidin...).
 type AiConfig = { key: string; url: string; model: string; referer?: string; title?: string };
 
-// Tanımlı TÜM sağlayıcıları sırayla döndür: önce kendi anahtarın, sonra Lovable.
-// askAi bunları zincirleme dener; biri çalışırsa gerçek AI devrededir.
-export function aiConfigs(): AiConfig[] {
-  const list: AiConfig[] = [];
-  const key =
-    process.env.AI_API_KEY ??
-    process.env.OPENAI_API_KEY ??
-    process.env.OPENROUTER_API_KEY;
-  if (key) {
-    list.push({
-      key,
-      url: process.env.AI_BASE_URL ?? "https://api.openai.com/v1/chat/completions",
-      model: process.env.AI_MODEL ?? "gpt-4o-mini",
-      referer: process.env.AI_REFERER, // OpenRouter için opsiyonel
-      title: process.env.AI_TITLE, // OpenRouter için opsiyonel
-    });
-  }
-  const lovable = process.env.LOVABLE_API_KEY;
-  if (lovable) {
-    // Önce zengin anlatım için güçlü model, o olmazsa hızlı model.
-    // Yerel şablonlara ancak ikisi de başarısız olursa düşülür.
-    const primary = process.env.LOVABLE_MODEL ?? "google/gemini-3.1-pro-preview";
-    for (const model of [primary, "google/gemini-3.6-flash", "google/gemini-2.5-flash"]) {
-      if (list.some((c) => c.model === model)) continue;
-      list.push({ key: lovable, url: "https://ai.gateway.lovable.dev/v1/chat/completions", model });
-    }
-  }
-  return list;
+const OPENAI_UCU = "https://api.openai.com/v1/chat/completions";
+
+function modelListesi(birincil: string, yedekler?: string) {
+  const hepsi = [birincil, ...(yedekler ?? "").split(",")].map((m) => m.trim()).filter(Boolean);
+  return Array.from(new Set(hepsi));
 }
 
+/**
+ * Tanımlı TÜM sağlayıcı/model kombinasyonlarını sırayla döndürür.
+ * askAi bunları zincirleme dener; biri çalışırsa gerçek yapay zekâ devrededir.
+ *
+ * Ortam değişkenleri:
+ *   AI_API_KEY, AI_BASE_URL, AI_MODEL, AI_FALLBACK_MODELS  → birincil sağlayıcı
+ *   AI_GATEWAY_KEY, AI_GATEWAY_URL, AI_GATEWAY_MODELS      → yedek ağ geçidi (opsiyonel)
+ */
+export function aiConfigs(): AiConfig[] {
+  const list: AiConfig[] = [];
+
+  const key =
+    process.env.AI_API_KEY ?? process.env.OPENAI_API_KEY ?? process.env.OPENROUTER_API_KEY;
+  if (key) {
+    const url = process.env.AI_BASE_URL ?? OPENAI_UCU;
+    for (const model of modelListesi(
+      process.env.AI_MODEL ?? "gpt-4o-mini",
+      process.env.AI_FALLBACK_MODELS,
+    )) {
+      list.push({
+        key,
+        url,
+        model,
+        referer: process.env.AI_REFERER, // OpenRouter için opsiyonel
+        title: process.env.AI_TITLE, // OpenRouter için opsiyonel
+      });
+    }
+  }
+
+  // İkinci bir uç: birincisi düşerse buraya geçilir.
+  const gatewayKey = process.env.AI_GATEWAY_KEY;
+  const gatewayUrl = process.env.AI_GATEWAY_URL;
+  if (gatewayKey && gatewayUrl) {
+    for (const model of modelListesi(
+      process.env.AI_GATEWAY_MODEL ?? "gpt-4o-mini",
+      process.env.AI_GATEWAY_MODELS,
+    )) {
+      if (list.some((c) => c.url === gatewayUrl && c.model === model)) continue;
+      list.push({ key: gatewayKey, url: gatewayUrl, model });
+    }
+  }
+
+  return list;
+}
 
 // Geriye dönük uyumluluk.
 export function aiConfig(): AiConfig {
   const cfgs = aiConfigs();
   if (!cfgs.length)
-    throw new Error(
-      "AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ya da LOVABLE_API_KEY ayarla.",
-    );
+    throw new Error("AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ayarla.");
   return cfgs[0];
 }
 
@@ -78,7 +97,8 @@ async function askOne(cfg: AiConfig, system: string, user: string, temperature: 
   if (res.status === 429) throw new Error("Çok hızlı gittik, biraz sonra tekrar dene.");
   if (res.status === 401 || res.status === 403)
     throw new Error("AI anahtarı geçersiz ya da yetkisiz. Anahtarını kontrol et.");
-  if (res.status === 402) throw new Error("Yapay zekâ kredisi bitti. Hesabına kredi ekleyince hikâye devam eder.");
+  if (res.status === 402)
+    throw new Error("Yapay zekâ kredisi bitti. Hesabına kredi ekleyince hikâye devam eder.");
   if (!res.ok) throw new Error(`Yapay zekâ isteği başarısız (${res.status})`);
 
   const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
@@ -112,9 +132,7 @@ export async function askAi(
 ) {
   const cfgs = aiConfigs();
   if (!cfgs.length)
-    throw new Error(
-      "AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ya da LOVABLE_API_KEY ayarla.",
-    );
+    throw new Error("AI anahtarı tanımlı değil. AI_API_KEY (+ AI_BASE_URL, AI_MODEL) ayarla.");
   let lastErr: unknown;
   for (const cfg of cfgs) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -136,7 +154,6 @@ export async function askAi(
   }
   throw lastErr instanceof Error ? lastErr : new Error("Yapay zekâya ulaşılamadı.");
 }
-
 
 export const FIELD_TR: Record<string, string> = {
   occupation: "meslek",
@@ -181,7 +198,7 @@ const OPENING_TONES = [
   "şüpheli ve merak uyandırıcı",
 ];
 
-const pick = <T,>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
+const pick = <T>(arr: T[]) => arr[Math.floor(Math.random() * arr.length)];
 
 export function openingSeed() {
   return {
@@ -191,7 +208,6 @@ export function openingSeed() {
     nonce: Math.random().toString(36).slice(2, 10),
   };
 }
-
 
 // --- Yapay zekâ ulaşılamadığında yerel yedekler ---
 const FALLBACK_SUGGESTIONS: Record<string, string[]> = {
@@ -267,31 +283,162 @@ function freshPick(field: string) {
 // İpucundaki konuyu gerçek meslek/uğraşlara bağlayan sözlük.
 // "doktor" → hekimlik dalları, "kundak" → yangın/suç dünyası vb.
 const HINT_TOPICS: { keys: string[]; jobs: string[] }[] = [
-  { keys: ["doktor", "hekim", "tıp", "hastane", "sağlık", "cerrah"], jobs: ["acil servis doktoru", "kırsalda aile hekimi", "çocuk cerrahı", "adli tabip", "ambulans hekimi", "onkoloji doktoru"] },
-  { keys: ["hemşire", "bakım"], jobs: ["yoğun bakım hemşiresi", "evde bakım hemşiresi", "gece vardiyası hemşiresi"] },
-  { keys: ["kundak", "yangın", "ateş", "suç", "hırsız", "soygun", "mafya", "çete"], jobs: ["kasa hırsızı", "kundakçı", "araba çalan tamirci", "sahte evrak ustası", "sokak dolandırıcısı", "kaçakçı teknesi kaptanı"] },
-  { keys: ["polis", "dedektif", "adalet", "hukuk", "avukat", "mahkeme"], jobs: ["cinayet masası dedektifi", "ceza avukatı", "adliye kâtibi", "narkotik polisi"] },
-  { keys: ["deniz", "balık", "gemi", "liman", "dalgıç"], jobs: ["balıkçı teknesi kaptanı", "liman vinç operatörü", "dalgıç eğitmeni", "gemi makinisti"] },
-  { keys: ["müzik", "şarkı", "gitar", "piyano", "sahne", "orkestra"], jobs: ["bar piyanisti", "stüdyo ses mühendisi", "sokak müzikçisi", "orkestra kemancısı"] },
-  { keys: ["yazı", "kitap", "gazete", "haber", "edebiyat", "şiir"], jobs: ["taşra gazetecisi", "hayalet yazar", "yayınevi editörü", "savaş muhabiri"] },
-  { keys: ["hayvan", "veteriner", "köpek", "kedi", "at"], jobs: ["kırsal veteriner", "hayvan barınağı sorumlusu", "at bakıcısı", "kuş rehabilitasyon uzmanı"] },
-  { keys: ["yemek", "aşçı", "mutfak", "fırın", "pasta", "kahve"], jobs: ["otel aşçıbaşı", "mahalle fırıncısı", "pastane şefi", "seyyar kahveci"] },
-  { keys: ["bilgisayar", "yazılım", "kod", "teknoloji", "oyun", "siber"], jobs: ["oyun programcısı", "siber güvenlik uzmanı", "veri analisti", "gömülü yazılım geliştiricisi"] },
-  { keys: ["öğretmen", "okul", "eğitim", "çocuk", "üniversite"], jobs: ["köy öğretmeni", "okul rehber öğretmeni", "anaokulu öğretmeni", "tarih doçenti"] },
-  { keys: ["uzay", "bilim", "araştırma", "laboratuvar", "fizik", "kimya"], jobs: ["gökbilimci", "laboratuvar teknisyeni", "deprem araştırmacısı", "aşı geliştirme biyoloğu"] },
-  { keys: ["asker", "savaş", "ordu", "pilot", "uçak"], jobs: ["helikopter pilotu", "arama kurtarma askeri", "mayın temizleme uzmanı", "kargo uçağı pilotu"] },
-  { keys: ["sanat", "resim", "heykel", "tasarım", "moda", "fotoğraf"], jobs: ["duvar resmi sanatçısı", "kostüm tasarımcısı", "belgesel fotoğrafçısı", "seramik ustası"] },
-  { keys: ["spor", "futbol", "boks", "koş", "antren"], jobs: ["boks antrenörü", "amatör küme futbolcusu", "fizyoterapist", "dağ rehberi"] },
-  { keys: ["toprak", "çiftlik", "tarım", "bağ", "arı", "orman"], jobs: ["arı yetiştiricisi", "bağ işletmecisi", "orman muhafaza memuru", "seracı"] },
-  { keys: ["para", "banka", "borsa", "ticaret", "patron", "şirket"], jobs: ["borsa aracısı", "banka kredi uzmanı", "küçük esnaf", "icra takip memuru"] },
-  { keys: ["yol", "şoför", "kamyon", "taksi", "kurye"], jobs: ["uzun yol kamyoncusu", "gece taksicisi", "motokurye", "yolcu otobüsü şoförü"] },
-  { keys: ["insan", "psikolog", "sosyal", "toplum", "yardım"], jobs: ["insan kaynakları uzmanı", "sosyal hizmet görevlisi", "psikolojik danışman", "mahalle muhtarı", "afet gönüllüsü koordinatörü", "yaşlı bakım evi sorumlusu"] },
-  { keys: ["çocuk", "bebek", "anaokul"], jobs: ["anaokulu öğretmeni", "çocuk gelişim uzmanı", "oyuncak tamircisi", "çocuk kitabı çizeri"] },
-  { keys: ["gez", "seyahat", "tur", "otel", "dünya"], jobs: ["tur rehberi", "seyahat yazarı", "butik otel işletmecisi", "gezici belgeselci"] },
-  { keys: ["çiçek", "bahçe", "bitki", "doğa"], jobs: ["peyzaj bahçıvanı", "çiçekçi dükkânı sahibi", "botanik bahçesi bakıcısı", "doğa koruma görevlisi"] },
-  { keys: ["ölüm", "cenaze", "mezar"], jobs: ["cenaze levazımatçısı", "mezarlık bekçisi", "adli tıp fotoğrafçısı"] },
-  { keys: ["din", "cami", "kilise", "inanç"], jobs: ["köy imamı", "ilahiyat öğretmeni", "vakıf gönüllüsü"] },
-  { keys: ["ev", "temizlik", "tamir", "usta"], jobs: ["ev tadilat ustası", "kombi servisçisi", "çilingir", "ikinci el eşya dükkâncısı"] },
+  {
+    keys: ["doktor", "hekim", "tıp", "hastane", "sağlık", "cerrah"],
+    jobs: [
+      "acil servis doktoru",
+      "kırsalda aile hekimi",
+      "çocuk cerrahı",
+      "adli tabip",
+      "ambulans hekimi",
+      "onkoloji doktoru",
+    ],
+  },
+  {
+    keys: ["hemşire", "bakım"],
+    jobs: ["yoğun bakım hemşiresi", "evde bakım hemşiresi", "gece vardiyası hemşiresi"],
+  },
+  {
+    keys: ["kundak", "yangın", "ateş", "suç", "hırsız", "soygun", "mafya", "çete"],
+    jobs: [
+      "kasa hırsızı",
+      "kundakçı",
+      "araba çalan tamirci",
+      "sahte evrak ustası",
+      "sokak dolandırıcısı",
+      "kaçakçı teknesi kaptanı",
+    ],
+  },
+  {
+    keys: ["polis", "dedektif", "adalet", "hukuk", "avukat", "mahkeme"],
+    jobs: ["cinayet masası dedektifi", "ceza avukatı", "adliye kâtibi", "narkotik polisi"],
+  },
+  {
+    keys: ["deniz", "balık", "gemi", "liman", "dalgıç"],
+    jobs: ["balıkçı teknesi kaptanı", "liman vinç operatörü", "dalgıç eğitmeni", "gemi makinisti"],
+  },
+  {
+    keys: ["müzik", "şarkı", "gitar", "piyano", "sahne", "orkestra"],
+    jobs: ["bar piyanisti", "stüdyo ses mühendisi", "sokak müzikçisi", "orkestra kemancısı"],
+  },
+  {
+    keys: ["yazı", "kitap", "gazete", "haber", "edebiyat", "şiir"],
+    jobs: ["taşra gazetecisi", "hayalet yazar", "yayınevi editörü", "savaş muhabiri"],
+  },
+  {
+    keys: ["hayvan", "veteriner", "köpek", "kedi", "at"],
+    jobs: [
+      "kırsal veteriner",
+      "hayvan barınağı sorumlusu",
+      "at bakıcısı",
+      "kuş rehabilitasyon uzmanı",
+    ],
+  },
+  {
+    keys: ["yemek", "aşçı", "mutfak", "fırın", "pasta", "kahve"],
+    jobs: ["otel aşçıbaşı", "mahalle fırıncısı", "pastane şefi", "seyyar kahveci"],
+  },
+  {
+    keys: ["bilgisayar", "yazılım", "kod", "teknoloji", "oyun", "siber"],
+    jobs: [
+      "oyun programcısı",
+      "siber güvenlik uzmanı",
+      "veri analisti",
+      "gömülü yazılım geliştiricisi",
+    ],
+  },
+  {
+    keys: ["öğretmen", "okul", "eğitim", "çocuk", "üniversite"],
+    jobs: ["köy öğretmeni", "okul rehber öğretmeni", "anaokulu öğretmeni", "tarih doçenti"],
+  },
+  {
+    keys: ["uzay", "bilim", "araştırma", "laboratuvar", "fizik", "kimya"],
+    jobs: [
+      "gökbilimci",
+      "laboratuvar teknisyeni",
+      "deprem araştırmacısı",
+      "aşı geliştirme biyoloğu",
+    ],
+  },
+  {
+    keys: ["asker", "savaş", "ordu", "pilot", "uçak"],
+    jobs: [
+      "helikopter pilotu",
+      "arama kurtarma askeri",
+      "mayın temizleme uzmanı",
+      "kargo uçağı pilotu",
+    ],
+  },
+  {
+    keys: ["sanat", "resim", "heykel", "tasarım", "moda", "fotoğraf"],
+    jobs: [
+      "duvar resmi sanatçısı",
+      "kostüm tasarımcısı",
+      "belgesel fotoğrafçısı",
+      "seramik ustası",
+    ],
+  },
+  {
+    keys: ["spor", "futbol", "boks", "koş", "antren"],
+    jobs: ["boks antrenörü", "amatör küme futbolcusu", "fizyoterapist", "dağ rehberi"],
+  },
+  {
+    keys: ["toprak", "çiftlik", "tarım", "bağ", "arı", "orman"],
+    jobs: ["arı yetiştiricisi", "bağ işletmecisi", "orman muhafaza memuru", "seracı"],
+  },
+  {
+    keys: ["para", "banka", "borsa", "ticaret", "patron", "şirket"],
+    jobs: ["borsa aracısı", "banka kredi uzmanı", "küçük esnaf", "icra takip memuru"],
+  },
+  {
+    keys: ["yol", "şoför", "kamyon", "taksi", "kurye"],
+    jobs: ["uzun yol kamyoncusu", "gece taksicisi", "motokurye", "yolcu otobüsü şoförü"],
+  },
+  {
+    keys: ["insan", "psikolog", "sosyal", "toplum", "yardım"],
+    jobs: [
+      "insan kaynakları uzmanı",
+      "sosyal hizmet görevlisi",
+      "psikolojik danışman",
+      "mahalle muhtarı",
+      "afet gönüllüsü koordinatörü",
+      "yaşlı bakım evi sorumlusu",
+    ],
+  },
+  {
+    keys: ["çocuk", "bebek", "anaokul"],
+    jobs: [
+      "anaokulu öğretmeni",
+      "çocuk gelişim uzmanı",
+      "oyuncak tamircisi",
+      "çocuk kitabı çizeri",
+    ],
+  },
+  {
+    keys: ["gez", "seyahat", "tur", "otel", "dünya"],
+    jobs: ["tur rehberi", "seyahat yazarı", "butik otel işletmecisi", "gezici belgeselci"],
+  },
+  {
+    keys: ["çiçek", "bahçe", "bitki", "doğa"],
+    jobs: [
+      "peyzaj bahçıvanı",
+      "çiçekçi dükkânı sahibi",
+      "botanik bahçesi bakıcısı",
+      "doğa koruma görevlisi",
+    ],
+  },
+  {
+    keys: ["ölüm", "cenaze", "mezar"],
+    jobs: ["cenaze levazımatçısı", "mezarlık bekçisi", "adli tıp fotoğrafçısı"],
+  },
+  {
+    keys: ["din", "cami", "kilise", "inanç"],
+    jobs: ["köy imamı", "ilahiyat öğretmeni", "vakıf gönüllüsü"],
+  },
+  {
+    keys: ["ev", "temizlik", "tamir", "usta"],
+    jobs: ["ev tadilat ustası", "kombi servisçisi", "çilingir", "ikinci el eşya dükkâncısı"],
+  },
 ];
 
 // Kısa anahtarlar ("at", "ev"...) kelime içinde yanlış eşleşmesin (örn. "satranç" ≠ "at").
@@ -318,19 +465,23 @@ function withHint(field: string, hint: string) {
     }
     // Konu sözlükte yoksa havuzdan anlamlı bir eşleşme dene.
     const pool = FALLBACK_SUGGESTIONS.occupation ?? [];
-    const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
+    const match = pool.find((p) =>
+      words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)),
+    );
     if (match) return match;
     // İpucu hiçbir konuya uymadı: saçma kalıp üretme, havuzdan kaliteli bir öneri ver.
     return freshPick("occupation");
   }
 
   const pool = FALLBACK_SUGGESTIONS[field] ?? [];
-  const match = pool.find((p) => words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)));
+  const match = pool.find((p) =>
+    words.some((w) => w.length > 3 && p.toLocaleLowerCase("tr").includes(w)),
+  );
   if (match) return match;
-  if (field === "personality") return `${h}, ${pick(["inatçı", "meraklı", "kırılgan", "esprili"])}`.slice(0, 80);
+  if (field === "personality")
+    return `${h}, ${pick(["inatçı", "meraklı", "kırılgan", "esprili"])}`.slice(0, 80);
   return freshPick(field);
 }
-
 
 export function fallbackSuggestion(field: string, hint?: string, avoid: string[] = []) {
   // avoid: bu oturumda daha önce verilenler — aynıyı tekrarlama.
@@ -340,7 +491,6 @@ export function fallbackSuggestion(field: string, hint?: string, avoid: string[]
   }
   return freshPick(field);
 }
-
 
 // ============================================================
 //  YEREL HİKÂYE MOTORU — kombinasyonel motora devrediyor

@@ -1,5 +1,5 @@
 {
-  "name": "tanstack_start_ts",
+  "name": "storygen-life",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "eval:engine": "bun run scripts/eval-engine.ts"
+    "eval:engine": "bun run scripts/eval-engine.ts",
+    "deploy": "vite build && npx wrangler deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -68,7 +69,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "2.9.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

@@ -10,7 +10,6 @@ import {
 import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
-import { reportLovableError } from "../lib/lovable-error-reporting";
 
 function NotFoundComponent() {
   return (
@@ -37,9 +36,7 @@ function NotFoundComponent() {
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error(error);
   const router = useRouter();
-  useEffect(() => {
-    reportLovableError(error, { boundary: "tanstack_root_error_component" });
-  }, [error]);
+  useEffect(() => {}, [error]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
@@ -78,17 +75,27 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Yapay Zekâ Hayat Simülatörü — Her Seçim Yeni Bir Hayat" },
-      { name: "description", content: "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele." },
-      { name: "author", content: "Lovable" },
+      {
+        name: "description",
+        content:
+          "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele.",
+      },
+      { name: "author", content: "StoryGen" },
       { property: "og:title", content: "Yapay Zekâ Hayat Simülatörü — Her Seçim Yeni Bir Hayat" },
-      { property: "og:description", content: "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele." },
+      {
+        property: "og:description",
+        content:
+          "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele.",
+      },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:card", content: "summary" },
+
       { name: "twitter:title", content: "Yapay Zekâ Hayat Simülatörü — Her Seçim Yeni Bir Hayat" },
-      { name: "twitter:description", content: "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/418c3b7a-dbdd-4f29-9987-988e4c94edaf/id-preview-b38c3aff--a64728a4-4546-41dc-8a88-6e995e5d1a84.lovable.app-1785274464145.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/418c3b7a-dbdd-4f29-9987-988e4c94edaf/id-preview-b38c3aff--a64728a4-4546-41dc-8a88-6e995e5d1a84.lovable.app-1785274464145.png" },
+      {
+        name: "twitter:description",
+        content:
+          "Bir karakter yarat, yapay zekâ anlatıcı hayat hikâyeni yazsın. Mutluluk, servet, kariyer ve stresi seçimlerinle dengele.",
+      },
     ],
     links: [
       {
@@ -103,7 +110,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
     ],
-
   }),
   shellComponent: RootShell,
   component: RootComponent,
