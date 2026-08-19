@@ -1,15 +1,63 @@
-// @lovable.dev/vite-tanstack-config already includes the following — do NOT add them manually
-// or the app will break with duplicate plugins:
-//   - TanStack devtools (dev-only, first), tanstackStart, viteReact, tailwindcss, tsConfigPaths,
-//     nitro (build-only using cloudflare as a default target), VITE_* env injection, @ path alias,
-//     React/TanStack dedupe, error logger plugins, and sandbox detection (port/host/strictPort).
-// You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
-import { defineConfig } from "@lovable.dev/vite-tanstack-config";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import tailwindcss from "@tailwindcss/vite";
+import viteReact from "@vitejs/plugin-react";
+import { nitro } from "nitro/vite";
+import { defineConfig, loadEnv } from "vite";
+import tsConfigPaths from "vite-tsconfig-paths";
 
-export default defineConfig({
-  tanstackStart: {
-    // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
-    server: { entry: "server" },
-  },
+/**
+ * Bağımsız Vite yapılandırması.
+ *
+ * Dağıtım hedefi NITRO_PRESET ile değiştirilebilir:
+ *   cloudflare-module (varsayılan) · node-server · vercel · netlify
+ */
+export default defineConfig(({ mode }) => {
+  // VITE_ ile başlayan değişkenler istemciye gömülür.
+  const env = loadEnv(mode, process.cwd(), "VITE_");
+  const define = Object.fromEntries(
+    Object.entries(env).map(([anahtar, deger]) => [
+      `import.meta.env.${anahtar}`,
+      JSON.stringify(deger),
+    ]),
+  );
+
+  return {
+    define,
+    plugins: [
+      tailwindcss(),
+      tsConfigPaths({ projects: ["./tsconfig.json"] }),
+      tanstackStart({
+        // TanStack Start'ın sunucu girişini src/server.ts'e yönlendir (SSR hata sarmalayıcımız).
+        server: { entry: "server" },
+        importProtection: {
+          behavior: "error",
+          client: { files: ["**/server/**"], specifiers: ["server-only"] },
+        },
+      }),
+      nitro({ defaultPreset: process.env.NITRO_PRESET ?? "cloudflare-module" }),
+      viteReact(),
+    ],
+    resolve: {
+      alias: { "@": `${process.cwd()}/src` },
+      // Aynı React/TanStack kopyasının iki kez yüklenmesini engelle.
+      dedupe: [
+        "react",
+        "react-dom",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+        "@tanstack/react-query",
+        "@tanstack/query-core",
+      ],
+    },
+    optimizeDeps: {
+      include: [
+        "react",
+        "react-dom",
+        "react-dom/client",
+        "react/jsx-runtime",
+        "react/jsx-dev-runtime",
+      ],
+    },
+    server: { host: true, port: 8080 },
+  };
 });

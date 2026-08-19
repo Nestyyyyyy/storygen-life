@@ -49,6 +49,14 @@ const LIFE_STATS = [
   { label: "Stres", Icon: Activity, color: "var(--stress)" },
 ];
 
+const OMUR_STATS = [
+  { label: "Sağlık", Icon: Activity, color: "var(--wealth)" },
+  { label: "Mutluluk", Icon: Smile, color: "var(--happiness)" },
+  { label: "Aşk", Icon: Heart, color: "var(--destructive)" },
+  { label: "Arkadaşlık", Icon: Handshake, color: "var(--ring)" },
+  { label: "Kariyer", Icon: Briefcase, color: "var(--career)" },
+];
+
 const CASE_STATS = [
   { label: "Şüphe", Icon: Eye, color: "var(--stress)" },
   { label: "Flört", Icon: Heart, color: "var(--happiness)" },
@@ -134,6 +142,47 @@ function Home() {
             </div>
             <span className="mt-5 flex items-center gap-1 text-sm font-semibold text-primary">
               Hayata başla
+              <ChevronRight
+                className="size-4 transition-transform group-hover:translate-x-1"
+                aria-hidden
+              />
+            </span>
+          </Link>
+
+          <Link
+            to="/hayat"
+            className="panel group relative overflow-hidden p-6 transition-transform hover:-translate-y-1"
+          >
+            <div className="flex items-center gap-3">
+              <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary/20 text-primary">
+                <UserRound className="size-5" aria-hidden />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Ömür Modu</h2>
+                <p className="text-xs text-muted-foreground">Karakterini kur, bir ömrü yaşa</p>
+              </div>
+            </div>
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              Cinsiyet, köken, meslek eğilimi, hayat hedefi ve iki kişilik özelliği seç; bebeklikten
+              yaşlılığa yaşına uygun olayları yaşa. Kararsız kaldığında akıl hocası sana bir seçenek
+              önerir ve nedenini söyler.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {OMUR_STATS.map(({ label, Icon, color }) => (
+                <span
+                  key={label}
+                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+                  style={{
+                    color,
+                    background: `color-mix(in oklab, ${color} 16%, transparent)`,
+                  }}
+                >
+                  <Icon className="size-3" aria-hidden /> {label}
+                </span>
+              ))}
+            </div>
+            <span className="mt-5 flex items-center gap-1 text-sm font-semibold text-primary">
+              Karakterini yarat
               <ChevronRight
                 className="size-4 transition-transform group-hover:translate-x-1"
                 aria-hidden
