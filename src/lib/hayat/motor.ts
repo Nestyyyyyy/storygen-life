@@ -3,6 +3,7 @@
 
 import { OLAYLAR } from "./olaylar";
 import { kalipId, rastgeleSahne } from "./uretec";
+import { ozellikOrtami } from "./profil";
 import {
   HEDEFLER,
   ISIMLER,
@@ -120,10 +121,16 @@ function kosulUygun(olay: Olay, durum: Durum) {
   return true;
 }
 
+/** +18 içerik yalnızca o modda ve karakter reşitken açılır. */
+export function yetiskinIcerikAcik(durum: Durum) {
+  return durum.mod === "yetiskin18" && durum.yas >= 18;
+}
+
 export function olayUygunMu(olay: Olay, durum: Durum) {
   const evre = evreBul(durum.yas);
   if (!olay.evreler.includes(evre)) return false;
   if (olay.kaosOnly && durum.mod !== "kaos") return false;
+  if (olay.yetiskin && !yetiskinIcerikAcik(durum)) return false;
   // Bir hayatta aynı olay iki kez çıkmaz.
   if (durum.gorulen.includes(olay.id)) return false;
   return kosulUygun(olay, durum);
@@ -154,10 +161,20 @@ export function olaySec(durum: Durum, sonKaliplar: string[] = []): Olay {
   if (zincir.length && Math.random() < 0.7) {
     return tartiliSec(zincir, durum);
   }
-  const uretilen = rastgeleSahne(evre, sonKaliplar);
+  const uretilen = rastgeleSahne(
+    evre,
+    sonKaliplar,
+    ozellikOrtami(durum.karakter.meslek),
+    yetiskinIcerikAcik(durum),
+  );
   const uretilenUygun = uretilen && kosulUygun(uretilen, durum) ? uretilen : null;
 
-  if (!uygun.length) return uretilenUygun ?? rastgeleSahne(evre) ?? uygunOlmayanYedek(durum);
+  if (!uygun.length)
+    return (
+      uretilenUygun ??
+      rastgeleSahne(evre, [], ozellikOrtami(durum.karakter.meslek), yetiskinIcerikAcik(durum)) ??
+      uygunOlmayanYedek(durum)
+    );
   if (!uretilenUygun) return tartiliSec(uygun, durum);
   return Math.random() < 0.45 ? tartiliSec(uygun, durum) : uretilenUygun;
 }
@@ -175,7 +192,7 @@ function tartiliSec(havuz: Olay[], durum: Durum): Olay {
 function uygunOlmayanYedek(durum: Durum): Olay {
   const evre = evreBul(durum.yas);
   return (
-    rastgeleSahne(evre) ?? {
+    rastgeleSahne(evre, [], ozellikOrtami(durum.karakter.meslek)) ?? {
       id: `bos-${durum.yas}`,
       evreler: [evre],
       alan: "hayat",
@@ -569,3 +586,195 @@ export function hayatHikayesi(durum: Durum, skor: number) {
 }
 
 export { kalipId };
+
+/* ---------- Oyuncunun kendi cevabı ----------
+   Seçeneklerden birini seçmek yerine kendi eylemini yazabilir. Metin,
+   içindeki fiillere bakılarak davranış etiketlerine çevrilir ve normal bir
+   seçenek gibi işlenir; böylece kişilik ve meslek etkileri aynen çalışır.
+   Yapay zekâ varsa aynı işi çok daha isabetli yapar (hayat.server.ts). */
+
+const EYLEM_SOZLUK: { anahtarlar: string[]; etiket: Etiket }[] = [
+  {
+    anahtarlar: ["kaç", "uzaklaş", "sus", "görmezden", "boş ver", "vazgeç", "geri çekil"],
+    etiket: "kacinma",
+  },
+  {
+    anahtarlar: ["karşı", "dur", "savaş", "vur", "bağır", "meydan", "diren", "yüzleş"],
+    etiket: "cesaret",
+  },
+  {
+    anahtarlar: ["yardım", "destek", "el uzat", "yanında ol", "bakım", "kurtar"],
+    etiket: "yardim",
+  },
+  {
+    anahtarlar: ["yalan", "kandır", "sakla", "gizle", "numara", "rüşvet", "taklit"],
+    etiket: "hile",
+  },
+  { anahtarlar: ["doğru", "itiraf", "açık", "anlat", "özür", "dürüst"], etiket: "durustluk" },
+  { anahtarlar: ["çalış", "uğraş", "mesai", "bitir", "emek", "çabala"], etiket: "calisma" },
+  {
+    anahtarlar: ["sat", "pazarlık", "yatır", "kâr", "kar et", "para kazan", "ticaret", "borç al"],
+    etiket: "ticaret",
+  },
+  {
+    anahtarlar: ["sev", "öp", "sarıl", "flört", "aşk", "evlen", "çıkma teklif"],
+    etiket: "romantik",
+  },
+  { anahtarlar: ["konuş", "ara", "davet", "tanış", "sohbet", "buluş", "topla"], etiket: "sosyal" },
+  {
+    anahtarlar: ["bekle", "düşün", "hesapla", "ölç", "temkin", "garanti", "planla"],
+    etiket: "guvenli",
+  },
+  { anahtarlar: ["risk", "kumar", "dene", "at", "gir", "her şeyi"], etiket: "risk" },
+  { anahtarlar: ["yalnız", "tek başıma", "odama", "kendi", "içime"], etiket: "yalniz" },
+  { anahtarlar: ["koş", "antren", "spor", "idman", "dövüş", "yüz"], etiket: "spor" },
+  { anahtarlar: ["çiz", "yaz", "çal", "beste", "resim", "sahne", "üret"], etiket: "sanat" },
+  { anahtarlar: ["tamir", "kur", "onar", "kod", "tasarla", "sök"], etiket: "teknik" },
+  { anahtarlar: ["doktor", "hastane", "ilaç", "tedavi", "muayene", "pansuman"], etiket: "tip" },
+  { anahtarlar: ["uyu", "dinlen", "erteleyeyim", "hiçbir şey", "yat"], etiket: "tembellik" },
+  { anahtarlar: ["kendim al", "bana kalsın", "önce ben", "umursama"], etiket: "bencil" },
+  { anahtarlar: ["ara ver", "gez", "keşfet", "yeni", "git", "seyahat"], etiket: "kesif" },
+];
+
+const EYLEM_SONUC: Partial<Record<Etiket, string[]>> = {
+  cesaret: [
+    "Dediğini yaptın ve geri adım atmadın; karşındakiler bunu bekle­miyordu.",
+    "Üstüne gittin. Sonucu ne olursa olsun, o an durmadın.",
+  ],
+  kacinma: [
+    "Uzaklaştın ve konuyu büyütmedin. Rahatladın ama bir şey yarım kaldı.",
+    "Karışmamayı seçtin; olan biten sensiz devam etti.",
+  ],
+  yardim: [
+    "Elini uzattın. Karşındaki bunu beklemiyordu ve unutmadı.",
+    "Kendi işini bırakıp yardım ettin; gün senin için uzadı, onun için kısaldı.",
+  ],
+  hile: [
+    "Kimsenin bakmadığı yerden ilerledin. İşe yaradı; içindeki ses bir süre konuştu.",
+    "Doğrudan gitmedin, dolandın. Kimse fark etmedi.",
+  ],
+  durustluk: [
+    "Olduğu gibi anlattın. Ortam bir an gerildi, sonra herkes rahatladı.",
+    "Süslemeden söyledin; bu sana pahalıya patlayabilirdi, patlamadı.",
+  ],
+  calisma: [
+    "Oturup bitirdin. Kimse görmedi ama iş tamamdı.",
+    "Emek verdin ve sonucu aldın; karşılığı hemen gelmedi, sonra geldi.",
+  ],
+  ticaret: [
+    "Rakamları konuştun ve masadan boş kalkmadın.",
+    "Fırsatı gördün, üstüne gittin; hesap tuttu.",
+  ],
+  romantik: [
+    "Kalbini ortaya koydun. Karşılığı ne olursa olsun, söylenmemiş bir şey kalmadı.",
+    "Yaklaştın ve mesafeyi kapattın; o an ikiniz de sustunuz.",
+  ],
+  sosyal: [
+    "Kimseyi beklemeden sen aradın. Kapı açıldı.",
+    "Konuşarak çözdün; en zor kısmı ilk cümleydi.",
+  ],
+  guvenli: [
+    "Acele etmedin, önce baktın. Kayıpsız çıktın.",
+    "Ölçüp biçtin ve garanti olanı yaptın; heyecansız ama sağlam.",
+  ],
+  risk: [
+    "Sonucunu bilmeden atladın. Kalbin küt küt attı.",
+    "Hesap yapmadan giriştin; iyi ya da kötü, artık dönüşü yoktu.",
+  ],
+  yalniz: [
+    "Kendi köşene çekildin. Sessizlik sana lazımdı.",
+    "Kimseye anlatmadın; bu seferlik yalnız taşımayı seçtin.",
+  ],
+  spor: [
+    "Bedenini kullandın ve yorulmak iyi geldi.",
+    "Fiziksel olarak karşılık verdin; nefesin kesildi ama iyi hissettin.",
+  ],
+  sanat: [
+    "İçinde kalanı bir şeye dönüştürdün. Kimse görmese de sende kaldı.",
+    "Anlatmak yerine ürettin; asıl söylemek istediğin oradaydı.",
+  ],
+  teknik: [
+    "Sorunu parçalarına ayırıp çözdün. Sade ve işleyen bir şey çıktı.",
+    "Nasıl çalıştığını anlayınca gerisi kolay geldi.",
+  ],
+  tip: [
+    "Doğru yere, doğru zamanda gittin. Büyümeden hallolan bir şey oldu.",
+    "Sağlığı öne aldın; bu karar sonradan çok işine yaradı.",
+  ],
+  tembellik: [
+    "Hiçbir şey yapmadın ve dünya yıkılmadı. Dinlendin.",
+    "Bu sefer erteledin; bedeli sonra, keyfi şimdi.",
+  ],
+  bencil: [
+    "Önce kendini düşündün. Kimse yüzüne bir şey demedi.",
+    "Payını aldın ve fazlasını sormadın.",
+  ],
+  kesif: [
+    "Bilmediğin tarafa doğru yürüdün. Ne bulacağını bilmiyordun ve bu iyiydi.",
+    "Yeni bir şey denedin; sonucu değil, denemiş olman değiştirdi.",
+  ],
+};
+
+/** Serbest metni davranış etiketlerine çevirir. */
+export function eylemEtiketleri(metin: string): Etiket[] {
+  const n = metin.toLocaleLowerCase("tr");
+  const bulunan: Etiket[] = [];
+  EYLEM_SOZLUK.forEach(({ anahtarlar, etiket }) => {
+    if (bulunan.includes(etiket)) return;
+    if (anahtarlar.some((a) => n.includes(a))) bulunan.push(etiket);
+  });
+  return bulunan.length ? bulunan.slice(0, 3) : ["kesif"];
+}
+
+/**
+ * Oyuncunun yazdığı cevabı oynanabilir bir seçeneğe çevirir.
+ * Sonuç normal seçeneklerle aynı boru hattından geçer.
+ */
+export function serbestSecenek(metin: string, durum: Durum): Secenek {
+  const temiz = metin.trim().slice(0, 140);
+  const etiketler = eylemEtiketleri(temiz);
+  const fx: Etki = {};
+  etiketler.forEach((e) => {
+    const taban = ETIKET_TABAN_ETKI[e];
+    if (!taban) return;
+    (Object.keys(taban) as StatAnahtar[]).forEach((k) => {
+      fx[k] = (fx[k] ?? 0) + Math.round((taban[k] ?? 0) * 0.55);
+    });
+  });
+  // Her serbest eylemin bir bedeli olsun: küçük bir yorgunluk.
+  fx.saglik = (fx.saglik ?? 0) - 1 - Math.floor(Math.random() * 3);
+
+  const cumle = rast(
+    EYLEM_SONUC[etiketler[0]] ?? ["Dediğini yaptın ve hayat kendi yoluna devam etti."],
+  );
+  return {
+    t: temiz,
+    etiketler,
+    fx,
+    sonuc: `«${temiz}» ${cumle}`,
+  };
+}
+
+/** serbestSecenek'in kullandığı taban etkiler (profil.ts ile aynı ölçek). */
+const ETIKET_TABAN_ETKI: Partial<Record<Etiket, Etki>> = {
+  cesaret: { saglik: -3, arkadaslik: 5, mutluluk: 4 },
+  kacinma: { mutluluk: 3, saglik: 2 },
+  risk: { kariyer: 5, mutluluk: 4, saglik: -3 },
+  guvenli: { saglik: 3, mutluluk: 3 },
+  sosyal: { arkadaslik: 7, mutluluk: 4 },
+  yalniz: { mutluluk: 5, saglik: 3, arkadaslik: -3 },
+  romantik: { ask: 7, mutluluk: 4 },
+  sadakat: { ask: 5, arkadaslik: 6 },
+  calisma: { kariyer: 7, mutluluk: -2, saglik: -3 },
+  tembellik: { mutluluk: 6, saglik: 4, kariyer: -3 },
+  yardim: { mutluluk: 7, arkadaslik: 6 },
+  bencil: { kariyer: 4, arkadaslik: -5 },
+  durustluk: { arkadaslik: 6, mutluluk: 5 },
+  hile: { kariyer: 5, arkadaslik: -4, mutluluk: -2 },
+  tip: { saglik: 8, mutluluk: 3 },
+  sanat: { mutluluk: 8, kariyer: 4 },
+  teknik: { kariyer: 7, mutluluk: 3 },
+  ticaret: { kariyer: 6, mutluluk: 2 },
+  spor: { saglik: 8, mutluluk: 4 },
+  kesif: { mutluluk: 6, kariyer: 3 },
+};

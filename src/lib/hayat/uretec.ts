@@ -20,6 +20,9 @@ type SecenekKalibi = {
   sonuc: string[];
   riskli?: number;
   kotu?: { fx: EtkiAraligi; para?: Aralik; sonuc: string[] };
+  /** Zincir olaylarını tetikleyen işaretler. */
+  bayrak?: string[];
+  onemli?: boolean;
 };
 
 type SahneKalibi = {
@@ -32,6 +35,10 @@ type SahneKalibi = {
   secenekler: SecenekKalibi[];
   /** Sahnenin çıkması için gereken/engelleyen koşullar. */
   gerek?: Olay["gerek"];
+  /** Seçim hakkı yok: olan olmuş, oyuncu okuyup devam eder. */
+  zorunlu?: boolean;
+  /** Sadece +18 modunda çıkar. */
+  yetiskin?: boolean;
 };
 
 /* ---------- Yuvalar ---------- */
@@ -1419,6 +1426,542 @@ const KALIPLAR: SahneKalibi[] = [
       },
     ],
   },
+  /* ===== İŞ HAYATI — sahne, oyuncunun mesleğine göre kuruluyor ===== */
+  {
+    id: "u-i1",
+    evreler: ["genc", "gencYetiskin"],
+    alan: "kariyer",
+    emoji: ["🧰", "🪪", "📋"],
+    baslik: ["İlk Vardiya", "Acemilik", "İşin Başı"],
+    durum: [
+      "{isYeri} ilk günün. Herkes ne yapacağını biliyor, sen hariç.",
+      "{zaman} {isYeri} sana kimsenin anlatmadığı bir işi yapman söylendi.",
+    ],
+    secenekler: [
+      {
+        t: ["Bilmediğini söyle, sor", "Yardım iste"],
+        etiketler: ["durustluk", "sosyal"],
+        fx: { kariyer: [3, 8], arkadaslik: [4, 9], mutluluk: [1, 5] },
+        sonuc: [
+          '"Bilmiyorum, gösterir misin?" demek ilk cümlede zor, ikincisinde kolaydı. Kıdemli biri yanına oturdu ve o günden sonra sana hep göz kulak oldu.',
+          "Sordun ve kimse gülmedi. Aksine, sorduğun için işi doğru yaptın ve bu fark edildi.",
+        ],
+      },
+      {
+        t: ["Biliyormuş gibi yap", "Kendi başına dene"],
+        etiketler: ["hile", "cesaret"],
+        fx: { kariyer: [-4, 6], saglik: [-5, 0], mutluluk: [-4, 3] },
+        sonuc: [
+          "Kimseye sormadan giriştin. Yarısı doğru çıktı, yarısı baştan yapıldı; kimse bir şey demedi ama sen biliyordun.",
+          "Bilmediğini belli etmedin ve şansın yaver gitti. O gün kurtuldun, ertesi gün aynı numara tutmadı.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-i2",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "kariyer",
+    emoji: ["⏱️", "📎", "🗣️"],
+    baslik: ["Hata", "Kimin Suçu", "Denetim"],
+    durum: [
+      "{isYeri} bir hata ortaya çıktı ve kimin yaptığı belli değil. Aslında sen biliyorsun.",
+      "{zaman} {isYeri} yapılan işte bir sorun çıktı; herkes birbirine bakıyor.",
+    ],
+    secenekler: [
+      {
+        t: ["Benim, diye çık", "Üstlen"],
+        etiketler: ["durustluk", "cesaret"],
+        fx: { kariyer: [-3, 5], arkadaslik: [5, 10], mutluluk: [2, 7] },
+        sonuc: [
+          '"Benim hatam" dedin ve odada bir sessizlik oldu. Zarar aynı kaldı ama o günden sonra sözüne farklı bir ağırlık verildi.',
+          "Kabul ettin. Kısa vadede canını yaktı; uzun vadede kimse senden şüphe etmedi.",
+        ],
+      },
+      {
+        t: ["Sessiz kal", "Belli etme"],
+        etiketler: ["kacinma", "hile"],
+        fx: { kariyer: [0, 4], mutluluk: [-7, -2], arkadaslik: [-5, 0] },
+        sonuc: [
+          "Sesini çıkarmadın. Fatura başkasına kesildi ve o kişi bir daha sana eskisi gibi bakmadı.",
+          "Konu kapandı, kimse bir şey öğrenmedi. Sen öğrendin ve o bilgi aylarca yanında kaldı.",
+        ],
+      },
+      {
+        t: ["Sistemi düzelt", "Bir daha olmasın diye çalış"],
+        etiketler: ["teknik", "calisma"],
+        fx: { kariyer: [5, 11], saglik: [-5, -1], mutluluk: [0, 4] },
+        sonuc: [
+          "Suçluyu aramak yerine nedenini buldun ve bir daha olmayacak hale getirdin. Bir hafta fazla mesai, bir ömür rahat.",
+          "Hatanın kaynağını çıkardın ortaya. Kimse teşekkür etmedi ama bir daha aynı sorun yaşanmadı.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-i3",
+    evreler: ["gencYetiskin", "yetiskin", "orta"],
+    alan: "kariyer",
+    emoji: ["🚪", "🔒", "🪟"],
+    baslik: ["Kapalı Kapılar Ardında", "Uzun Vardiya"],
+    durum: [
+      "{isYeri} gün bitmek bilmiyor; dışarıda hava kararalı çok olmuş.",
+      "{zaman} {isYeri} saatlerdir aynı yerdesin ve buranın havası üstüne siniyor.",
+    ],
+    secenekler: [
+      {
+        t: ["Sonuna kadar kal", "Bitmeden çıkma"],
+        etiketler: ["calisma"],
+        fx: { kariyer: [4, 9], saglik: [-8, -3], mutluluk: [-5, 1] },
+        para: [500, 5000],
+        sonuc: [
+          "Son kişi sen çıktın, ışıkları sen kapattın. İş bitti; sırtın tutuldu, telefonda üç cevapsız arama vardı.",
+          "Kalanların arasında sen de vardın. Bitirdiniz, sabaha karşı eve döndün ve yemek yemeden uyudun.",
+        ],
+      },
+      {
+        t: ["Kalanı yarına bırak", "Paydos et"],
+        etiketler: ["guvenli", "tembellik"],
+        fx: { saglik: [4, 9], mutluluk: [3, 8], kariyer: [-5, -1] },
+        sonuc: [
+          "Ceketini aldın ve çıktın. Arkanda yarım kalan iş vardı ama akşam yemeğine yetiştin.",
+          "Bugünlük bu kadar dedin. Sabah geldiğinde iş hâlâ oradaydı ve dünya dönmeye devam etmişti.",
+        ],
+      },
+      {
+        t: ["Yardım çağır", "Ekibi topla"],
+        etiketler: ["sosyal", "teknik"],
+        fx: { kariyer: [3, 8], arkadaslik: [4, 9], saglik: [-3, 1] },
+        sonuc: [
+          "Tek başına boğulmak yerine iki kişi daha çağırdın. İş üçte bir sürede bitti, sonra hep birlikte bir şeyler yediniz.",
+          "Yükü paylaştın. Kimse itiraz etmedi; herkes zaten aynı gemideydi.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-i4",
+    evreler: ["yetiskin", "orta"],
+    alan: "para",
+    emoji: ["🧮", "💼", "📉"],
+    baslik: ["Zor Karar", "Kesinti", "Liste"],
+    durum: [
+      "{isYeri} bütçe kısıldı ve birilerinin gitmesi gerekiyor. Listeyi senden istiyorlar.",
+      "{zaman} {isYeri} işlerin daralttığı bir konuşma yapılacak ve konuşacak kişi sensin.",
+    ],
+    secenekler: [
+      {
+        t: ["Adil ol, açık konuş", "Herkese yüz yüze söyle"],
+        etiketler: ["durustluk", "yardim"],
+        fx: { arkadaslik: [3, 8], mutluluk: [-6, 0], kariyer: [0, 4] },
+        sonuc: [
+          "Herkesle tek tek, yüz yüze konuştun. Kimse sevinmedi ama kimse de arkandan konuşmadı; bir kişi çıkarken sana sarıldı.",
+          "Kararı yumuşatmadın, süslemedin. Zor bir gündü; yine de kimseye yalan söylemedin.",
+        ],
+      },
+      {
+        t: ["Kendini kurtar", "Listeyi kendine göre yaz"],
+        etiketler: ["bencil", "hile"],
+        fx: { kariyer: [4, 9], arkadaslik: [-10, -4], mutluluk: [-8, -2] },
+        para: [2000, 12000],
+        sonuc: [
+          "Listeyi kendi konumunu sağlama alacak şekilde yazdın. Koltuğun kaldı; öğle yemeğinde masan boşaldı.",
+          "Kendini oyunun dışında tuttun. Kimse kanıtlayamadı ama herkes anladı.",
+        ],
+      },
+      {
+        t: ["Karşı çık, imzalama", "Ben yapmam de"],
+        etiketler: ["cesaret", "durustluk"],
+        fx: { kariyer: [-9, -2], arkadaslik: [6, 12], mutluluk: [2, 8] },
+        sonuc: [
+          '"Bunu ben yapmam" dedin ve odadan çıktın. Liste yine yapıldı, senin adın da bir sonrakine yazıldı — ama başın dikti.',
+          "İmzalamadın. Kariyerine iyi gelmedi; aynada kendine bakarken sorun yaşamadın.",
+        ],
+      },
+    ],
+  },
+
+  /* ===== SEÇİM HAKKI OLMAYAN OLAYLAR — hayat sormadan yapar ===== */
+  {
+    id: "u-z1",
+    evreler: ["bebek", "cocuk"],
+    alan: "aile",
+    emoji: ["📦", "🚚", "🏚️"],
+    baslik: ["Taşınıyoruz", "Haber"],
+    zorunlu: true,
+    durum: [
+      "{zaman} eve kolilerle girildi: taşınıyorsunuz. Kimse sana sormadı, soramazdın da.",
+      "Bir sabah evde her şey değişti; büyüklerin aldığı bir karar seni de alıp götürdü.",
+    ],
+    secenekler: [
+      {
+        t: ["..."],
+        etiketler: ["kacinma"],
+        fx: { mutluluk: [-8, -3], arkadaslik: [-9, -3], saglik: [-2, 1] },
+        sonuc: [
+          "Yeni mahallede kimseyi tanımıyordun ve eski arkadaşlarının hiçbirinin telefonu yoktu. İlk aylar pencereden dışarı bakmakla geçti.",
+          "Odanı bile toplamana izin verilmedi, her şey kutulara girdi. Yeni evde bir süre kendi eşyalarını yabancı gibi kullandın.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-z2",
+    evreler: ["cocuk", "genc"],
+    alan: "saglik",
+    emoji: ["🦴", "🩹", "🚑"],
+    baslik: ["Kaza", "Talihsizlik"],
+    zorunlu: true,
+    durum: [
+      "{zaman} {mekan} bir anda oldu: ayağın kaydı, dünya döndü ve yerdeydin.",
+      "Hiç beklemediğin bir anda bir kaza geçirdin. Kimsenin suçu yoktu, sadece oldu.",
+    ],
+    secenekler: [
+      {
+        t: ["..."],
+        etiketler: ["kacinma"],
+        fx: { saglik: [-14, -6], mutluluk: [-6, -1] },
+        para: [-6000, -800],
+        sonuc: [
+          "Alçı, birkaç hafta ders kaybı ve gecelerce süren bir sızı. İyileştin ama o mevsim seninle hiç geçmedi.",
+          "Hastane, röntgen, uzun bir bekleme. Sonrasında yürüdün ama havanın değiştiği günlerde o yer hep hatırlattı.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-z3",
+    evreler: ["genc", "gencYetiskin"],
+    alan: "aile",
+    emoji: ["📄", "🕊️", "📞"],
+    baslik: ["Beklenmedik Haber", "Telefon"],
+    zorunlu: true,
+    durum: [
+      "{zaman} bir telefon geldi ve söylenen cümleden sonra dünyanın sesi kısıldı.",
+      "Kimsenin hazırlıklı olmadığı bir haber düştü. Yapabileceğin bir şey yoktu.",
+    ],
+    secenekler: [
+      {
+        t: ["..."],
+        etiketler: ["yalniz"],
+        fx: { mutluluk: [-14, -6], saglik: [-5, -1], arkadaslik: [-2, 4] },
+        sonuc: [
+          "Cenaze kalabalıktı, sonrası çok sessiz. Haftalarca sabahları bir anlığına unutup sonra yeniden hatırladın.",
+          "O gün ne yediğini, ne giydiğini hatırlamıyorsun. Sadece telefonun kulağına değdiği anı hatırlıyorsun.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-z4",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "kariyer",
+    emoji: ["📪", "🏢", "🧾"],
+    baslik: ["Kapanış", "İşten Çıkarma"],
+    zorunlu: true,
+    durum: [
+      "{isYeri} bir sabah herkes toplantıya çağrıldı: işler kapanıyor. İtiraz edilecek bir yer yoktu.",
+      "{zaman} kararı yukarıdan verdiler; senin performansınla ilgisi bile yoktu.",
+    ],
+    secenekler: [
+      {
+        t: ["..."],
+        etiketler: ["kacinma"],
+        fx: { kariyer: [-12, -5], mutluluk: [-10, -3], arkadaslik: [-3, 2] },
+        para: [-4000, 9000],
+        sonuc: [
+          "Masanı bir kutuya sığdırdın. Kapıdan çıkarken güvenlikle vedalaşman, o işteki son insani an oldu.",
+          "Tazminat hesaplandı, imzalar atıldı ve iki saat içinde her şey bitti. Eve gidince ne diyeceğini bilemedin.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-z5",
+    evreler: ["yetiskin", "orta"],
+    alan: "para",
+    emoji: ["📊", "🌪️", "🏦"],
+    baslik: ["Kriz", "Her Şey Bir Anda"],
+    zorunlu: true,
+    durum: [
+      "{zaman} ekonomide bir şey kırıldı ve senin hiçbir dahlin olmadan hesabın eridi.",
+      "Kimsenin öngöremediği bir gelişme oldu; birikimin bir gecede anlamını değiştirdi.",
+    ],
+    secenekler: [
+      {
+        t: ["..."],
+        etiketler: ["kacinma"],
+        fx: { mutluluk: [-9, -3], saglik: [-5, 0], kariyer: [-4, 1] },
+        para: [-40000, -6000],
+        sonuc: [
+          "Rakamlara bakıp bakıp kapattın, sonra bir daha açtın. Yıllarca biriktirdiğin şey artık aynı şeyi almıyordu.",
+          "Planların bir kalemde silindi. Kızacak birini bulamadın; kimse yoktu.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-z6",
+    evreler: ["orta", "yasli"],
+    alan: "saglik",
+    emoji: ["🫀", "🏥", "💤"],
+    baslik: ["Bir Sabah", "Ansızın"],
+    zorunlu: true,
+    durum: [
+      "{zaman} sabah kalkarken bir şey ters gitti; gerisini hastane odasında hatırlıyorsun.",
+      "Vücudun uyarı vermeden bir şey yaptı ve karar verme sırası sende değildi.",
+    ],
+    secenekler: [
+      {
+        t: ["..."],
+        etiketler: ["kacinma"],
+        fx: { saglik: [-16, -7], mutluluk: [-6, 0], arkadaslik: [0, 5] },
+        para: [-25000, -3000],
+        sonuc: [
+          "Birkaç gün gözlem, bir sürü kablo ve tanıdık yüzlerin endişeli hali. Taburcu oldun ama artık her sabah bir ilaç kutusu var.",
+          'Zamanında yetişilmiş. Doktor "şanslısın" dedi ve sen bunun ne kadar ince bir çizgi olduğunu ilk kez anladın.',
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-z7",
+    evreler: ["gencYetiskin", "yetiskin", "orta"],
+    alan: "hayat",
+    emoji: ["🌧️", "🚧", "📵"],
+    baslik: ["Aksilik", "Öyle Bir Gün"],
+    zorunlu: true,
+    durum: [
+      "{zaman} {mekan} planladığın hiçbir şey olmadı; olan her şey plansızdı.",
+      "Elinde olmayan bir sebeple bütün gün ters gitti ve sen sadece izledin.",
+    ],
+    secenekler: [
+      {
+        t: ["..."],
+        etiketler: ["kacinma"],
+        fx: { mutluluk: [-7, -2], saglik: [-4, 0], kariyer: [-3, 1] },
+        para: [-5000, -300],
+        sonuc: [
+          "Ne yapsan olmadı; her çözüm yeni bir sorun açtı. Akşam eve vardığında sadece sessizlik istedin.",
+          "Kimsenin suçu değildi, kimseye kızamadın. Bazı günler sadece dayanmakla geçiyor.",
+        ],
+      },
+    ],
+  },
+
+  /* ===== +18 MOD — sadece bu modda ve karakter reşitken çıkar =====
+     Yetişkin hayatının sert tarafı: bağımlılık, ihanet, kumar, şiddet.
+     Ağır konular açık sahne olarak değil, sonuçlarıyla anlatılıyor. */
+  {
+    id: "u-y18a",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "saglik",
+    emoji: ["🥃", "🍺", "🌫️"],
+    baslik: ["Son Kadeh", "Kapanış Saati"],
+    yetiskin: true,
+    durum: [
+      "{zaman} masadaki şişe boşaldı ve biri bir tane daha söylüyor. Yarın işin var.",
+      "Bu hafta üçüncü gece; içmeden uyuyamadığını fark etmeye başladın.",
+    ],
+    secenekler: [
+      {
+        t: ["Kalk, çık", "Bu gecelik yeter"],
+        etiketler: ["guvenli", "durustluk"],
+        fx: { saglik: [5, 11], mutluluk: [-3, 3], arkadaslik: [-4, 1] },
+        sonuc: [
+          "Ceketini aldın, arkandan laf atıldı ama durmadın. Sabah kalktığında başın ağrımıyordu ve bu, aylardır ilkti.",
+          '"Ben kaçtım" dedin. Masada kalanlar seni anlamadı; sen kendini anladın, o yeterdi.',
+        ],
+      },
+      {
+        t: ["Bir tane daha", "Devam et"],
+        etiketler: ["risk", "tembellik"],
+        fx: { saglik: [-12, -5], mutluluk: [3, 8], arkadaslik: [2, 6] },
+        para: [-4000, -600],
+        sonuc: [
+          "Gece nasıl bittiğini hatırlamıyorsun; sabah telefonundaki mesajları okumak için cesaret gerekti. Bir daha içmem dedin, bu sefer inanmadın bile.",
+          "Masa kapanana kadar kaldın. Eğlenceliydi, sonrası değildi; ertesi gün yarısını kaybettin.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-y18b",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "ask",
+    emoji: ["🚬", "🛏️", "🌆"],
+    baslik: ["Sabah", "Ertesi Gün"],
+    yetiskin: true,
+    durum: [
+      "{zaman} tanımadığın bir evde uyandın. Yanındaki hâlâ uyuyor ve adını tam hatırlamıyorsun.",
+      "Gece kimsenin planlamadığı bir yere gitti. Şimdi sabah oldu ve konuşulması gereken bir şey var.",
+    ],
+    secenekler: [
+      {
+        t: ["Kal, konuş", "Kahvaltı yap"],
+        etiketler: ["durustluk", "romantik"],
+        fx: { ask: [4, 10], mutluluk: [3, 8], arkadaslik: [1, 5] },
+        sonuc: [
+          "Kaçmak yerine oturup konuştunuz. Ne olduğunu ikiniz de biliyordunuz ama en azından yabancı gibi ayrılmadınız.",
+          "İki fincan kahve, tuhaf ama dürüst bir sohbet. Devam etmedi, yine de kimse kimseyi küçük düşürmedi.",
+        ],
+      },
+      {
+        t: ["Sessizce çık", "Not bırakma"],
+        etiketler: ["kacinma", "bencil"],
+        fx: { ask: [-6, -1], mutluluk: [-7, 1], saglik: [-2, 1] },
+        sonuc: [
+          "Ayakkabılarını dışarıda giydin. Kapıyı çekerken içeride bir şeyin kımıldadığını duydun ve daha hızlı yürüdün.",
+          "Kimseyi uyandırmadan çıktın. Metroda camdaki yansımana bakarken bunu kaçıncı kez yaptığını saydın.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-y18c",
+    evreler: ["yetiskin", "orta"],
+    alan: "ask",
+    emoji: ["📱", "🔥", "🚪"],
+    baslik: ["Aralanan Kapı", "Mesaj"],
+    yetiskin: true,
+    gerek: { iliski: "es" },
+    durum: [
+      "{zaman} {es} yan odada uyurken telefonuna gelen mesaj, uzun süredir beklediğin bir kapıyı aralıyor.",
+      "İş yerinden biriyle konuşmalar bir yerden sonra iş olmaktan çıktı ve bugün açık bir teklif geldi.",
+    ],
+    secenekler: [
+      {
+        t: ["Sil, kapat", "Sınırı çiz"],
+        etiketler: ["sadakat", "durustluk"],
+        fx: { ask: [4, 10], mutluluk: [-3, 4], arkadaslik: [0, 3] },
+        sonuc: [
+          "Konuşmayı sildin ve o kişiye net bir cümle yazdın. İçinde bir şey buruldu ama gece {es} yanına uzandığında gözünü kaçırmak zorunda kalmadın.",
+          "Kapıyı kendin kapattın. Kolay olmadı; kimse alkışlamadı, sadece sen bildin.",
+        ],
+      },
+      {
+        t: ["Cevap yaz", "Riski al"],
+        etiketler: ["hile", "risk", "romantik"],
+        fx: { ask: [-10, 4], mutluluk: [-6, 6], arkadaslik: [-5, 0] },
+        sonuc: [
+          "Yazdın ve bir şey başladı. Haftalarca iki hayat yaşadın; ikisinde de tam olarak yoktun.",
+          "Kendine binlerce açıklama ürettin. Hiçbiri, eve girerken duraksadığın o iki saniyeyi geçirmedi.",
+        ],
+        bayrak: ["ihanet"],
+        onemli: true,
+      },
+    ],
+  },
+  {
+    id: "u-y18d",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "para",
+    emoji: ["🎲", "🃏", "💸"],
+    baslik: ["Masa", "Son El"],
+    yetiskin: true,
+    durum: [
+      "{zaman} masadasın ve önündeki para bu akşam kaybedebileceğinden fazla.",
+      "Bir el daha, hep bir el daha. Bu sefer masaya koyduğun şey kira parası.",
+    ],
+    secenekler: [
+      {
+        t: ["Kalk, git", "Zararı kes"],
+        etiketler: ["guvenli", "durustluk"],
+        fx: { mutluluk: [-4, 4], saglik: [2, 6] },
+        para: [-9000, -1500],
+        sonuc: [
+          'Sandalyeyi geri ittin ve kalanı cebine koydun. Arkandan "korkak" diyen oldu; sen o gece kirasını ödeyebilen tek kişiydin.',
+          "Kaybettiğinle yetindin. Kapıdan çıkarken elin titriyordu ama daha fazlasını kaybetmedin.",
+        ],
+      },
+      {
+        t: ["Hepsini koy", "Son bir el"],
+        etiketler: ["risk", "hile"],
+        fx: { saglik: [-8, -2], mutluluk: [-10, 8] },
+        para: [10000, 60000],
+        riskli: 0.6,
+        kotu: {
+          fx: { saglik: [-10, -4], mutluluk: [-16, -8], arkadaslik: [-8, -2] },
+          para: [-70000, -25000],
+          sonuc: [
+            "Her şey bitti. Masadan kalkarken kimse yüzüne bakmadı; borcunu kime ödeyeceğini ise ertesi sabah öğrendin.",
+            "Son el de gitti. Eve nasıl döndüğünü hatırlamıyorsun, kime ne söz verdiğini de.",
+          ],
+        },
+        sonuc: [
+          "Tuttu. Parayı sayarken ellerin titriyordu ve o gece kimseye anlatamadın. Bir daha oturmayacağını söyledin — kendine bile inandıramadın.",
+          "Kazandın ve masadan efsane gibi kalktın. Asıl sorun, bu duyguyu bir daha aramaya başlaman oldu.",
+        ],
+        bayrak: ["kumarTadi"],
+      },
+    ],
+  },
+  {
+    id: "u-y18e",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "saglik",
+    emoji: ["🥊", "🚨", "🩸"],
+    baslik: ["Kavga", "Gerilen Gece"],
+    yetiskin: true,
+    durum: [
+      "{zaman} {mekan} bir laf büyüdü ve karşındaki adam üstüne yürüyor.",
+      "Kalabalıkta bir itiş kakış çıktı; içine çekilmen an meselesi.",
+    ],
+    secenekler: [
+      {
+        t: ["Geri çekil, uzaklaş", "Bulaşma"],
+        etiketler: ["guvenli", "kacinma"],
+        fx: { saglik: [1, 5], mutluluk: [-5, 2], arkadaslik: [-4, 1] },
+        sonuc: [
+          "Ellerini kaldırıp geri adım attın ve döndün. Arkandan bağırdılar; sen sağlam yürüdün.",
+          "Karışmadın. Ertesi gün olayın nasıl bittiğini duyunca çekilmekle iyi ettiğini anladın.",
+        ],
+      },
+      {
+        t: ["Karşılık ver", "Durma"],
+        etiketler: ["cesaret", "risk"],
+        fx: { saglik: [-16, -5], mutluluk: [-6, 5], arkadaslik: [-3, 5] },
+        para: [-12000, -1000],
+        sonuc: [
+          "Birkaç saniye sürdü, sonrası karakol ve dikiş. Kimse kazanmadı; ikinizin de sabıka kaydında bir satır var artık.",
+          "Yumruk attın, yumruk yedin. Kaburgan haftalarca ağrıdı ve o geceyi anlatırken hiç gurur duymadın.",
+        ],
+      },
+    ],
+  },
+  {
+    id: "u-y18f",
+    evreler: ["yetiskin", "orta"],
+    alan: "ask",
+    emoji: ["🕯️", "🛌", "🤍"],
+    baslik: ["Aradaki Mesafe", "Yatak Odası"],
+    yetiskin: true,
+    gerek: { iliski: "es" },
+    durum: [
+      "{zaman} {es} ile aranızdaki fiziksel mesafe artık konuşulması gereken bir şey oldu.",
+      "Yıllar geçti ve ikiniz de aynı şeyi düşünüp söylemiyorsunuz: bu iş eskisi gibi değil.",
+    ],
+    secenekler: [
+      {
+        t: ["Açık konuş", "Utanmadan söyle"],
+        etiketler: ["durustluk", "romantik", "cesaret"],
+        fx: { ask: [7, 14], mutluluk: [4, 10] },
+        sonuc: [
+          "Söylemesi zordu, söyledin. {es} önce sustu, sonra kendi tarafını anlattı; ikiniz de yıllardır aynı odada yalnız olduğunuzu fark ettiniz. O konuşma bir şeyi geri getirdi.",
+          "Konuyu ilk açan sen oldun. Rahatlamak birkaç gün sürdü ama ilk kez gerçekten aynı taraftaydınız.",
+        ],
+      },
+      {
+        t: ["Görmezden gel", "Zamanla geçer"],
+        etiketler: ["kacinma", "tembellik"],
+        fx: { ask: [-11, -4], mutluluk: [-7, -1] },
+        sonuc: [
+          "Konuyu açmadın, o da açmadı. Aynı yatakta sırt sırta uyumak bir alışkanlığa dönüştü.",
+          '"Herkeste böyle" dedin kendine. Belki öyleydi; yine de aradaki boşluk her ay biraz daha büyüdü.',
+        ],
+      },
+    ],
+  },
 ];
 
 /* ---------- Üretim ---------- */
@@ -1431,23 +1974,25 @@ function buyukHarf(metin: string) {
   return (TR_BUYUK[ilk] ?? ilk.toUpperCase()) + metin.slice(1);
 }
 
-function yuvalariDoldur(metin: string, evre: Evre) {
+function yuvalariDoldur(metin: string, evre: Evre, isYerleri: string[]) {
   return buyukHarf(
-    metin.replace(/\{(mekan|zaman)\}/g, (_tam, ad: string) =>
-      ad === "mekan" ? rast(MEKANLAR[evre]) : rast(ZAMANLAR),
-    ),
+    metin.replace(/\{(mekan|zaman|isYeri)\}/g, (_tam, ad: string) => {
+      if (ad === "mekan") return rast(MEKANLAR[evre]);
+      if (ad === "isYeri") return rast(isYerleri.length ? isYerleri : MEKANLAR[evre]);
+      return rast(ZAMANLAR);
+    }),
   );
 }
 
-/** Bu yaş bandında çıkabilecek kalıplar. */
-export function uygunKaliplar(evre: Evre): SahneKalibi[] {
-  return KALIPLAR.filter((k) => k.evreler.includes(evre));
+/** Bu yaş bandında ve bu modda çıkabilecek kalıplar. */
+export function uygunKaliplar(evre: Evre, yetiskinIcerik = false): SahneKalibi[] {
+  return KALIPLAR.filter((k) => k.evreler.includes(evre) && (yetiskinIcerik || !k.yetiskin));
 }
 
 let sayac = 0;
 
 /** Kalıbı somut bir sahneye dönüştürür: yuvalar dolar, etkiler aralıktan seçilir. */
-export function sahneUret(kalip: SahneKalibi, evre: Evre): Olay {
+export function sahneUret(kalip: SahneKalibi, evre: Evre, isYerleri: string[] = []): Olay {
   sayac += 1;
   const secenekler: Secenek[] = kalip.secenekler.map((sk) => {
     const s: Secenek = {
@@ -1457,6 +2002,8 @@ export function sahneUret(kalip: SahneKalibi, evre: Evre): Olay {
       sonuc: rast(sk.sonuc),
     };
     if (sk.para) s.para = arasi(sk.para);
+    if (sk.bayrak) s.bayrak = sk.bayrak;
+    if (sk.onemli) s.onemli = true;
     if (sk.riskli) {
       s.riskli = sk.riskli;
       if (sk.kotu) {
@@ -1476,19 +2023,26 @@ export function sahneUret(kalip: SahneKalibi, evre: Evre): Olay {
     alan: kalip.alan,
     emoji: rast(kalip.emoji),
     baslik: rast(kalip.baslik),
-    metin: yuvalariDoldur(rast(kalip.durum), evre),
+    metin: yuvalariDoldur(rast(kalip.durum), evre, isYerleri),
     secenekler,
     gerek: kalip.gerek,
+    ...(kalip.zorunlu ? { zorunlu: true } : {}),
+    ...(kalip.yetiskin ? { yetiskin: true } : {}),
     uretilmis: true,
   };
 }
 
 /** Kalıp havuzundan, son kullanılanları atlayarak bir sahne üretir. */
-export function rastgeleSahne(evre: Evre, kacinilan: string[] = []): Olay | null {
-  const hepsi = uygunKaliplar(evre);
+export function rastgeleSahne(
+  evre: Evre,
+  kacinilan: string[] = [],
+  isYerleri: string[] = [],
+  yetiskinIcerik = false,
+): Olay | null {
+  const hepsi = uygunKaliplar(evre, yetiskinIcerik);
   if (!hepsi.length) return null;
   const taze = hepsi.filter((k) => !kacinilan.includes(k.id));
-  return sahneUret(rast(taze.length ? taze : hepsi), evre);
+  return sahneUret(rast(taze.length ? taze : hepsi), evre, isYerleri);
 }
 
 /** Bir sahnenin hangi kalıptan geldiği — tekrar kontrolü için. */

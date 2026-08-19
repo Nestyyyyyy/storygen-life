@@ -165,6 +165,75 @@ const NOT_MESLEK: Partial<Record<Etiket, string[]>> = {
   ],
 };
 
+/* ---------- İşin geçtiği yerler ----------
+   Kariyer ve para sahneleri oyuncunun mesleğine göre burada kuruluyor:
+   hemşireysen hastane koridorunda, tezgâhtarsan kepengin önünde. */
+const ORTAMLAR: Partial<Record<Etiket, string[]>> = {
+  tip: [
+    "hastanenin acil koridorunda",
+    "nöbet odasının loş ışığında",
+    "poliklinik kapısının önünde",
+    "ambulansın arkasında",
+  ],
+  sanat: [
+    "provanın bittiği boş sahnede",
+    "atölyenin boya kokan köşesinde",
+    "kulisin aynalı duvarının önünde",
+    "kayıt odasının camının ardında",
+  ],
+  teknik: [
+    "şantiyenin konteyner ofisinde",
+    "atölyenin yağ kokan tezgâhında",
+    "ekranların mavi ışığında",
+    "makine dairesinin gürültüsünde",
+  ],
+  ticaret: [
+    "dükkânın kepenginin önünde",
+    "pazarın en kalabalık saatinde",
+    "toplantı odasının uzun masasında",
+    "deponun sayım gecesinde",
+  ],
+  spor: [
+    "antrenman salonunun terli havasında",
+    "sahanın kenarında, ısınma sırasında",
+    "soyunma odasının sessizliğinde",
+    "müsabaka öncesi tünelde",
+  ],
+  kesif: [
+    "yolun ortasında, mola verilen bir dinlenme tesisinde",
+    "limanda, kalkışa yakın",
+    "terminalin bekleme salonunda",
+    "haritanın bittiği yerde",
+  ],
+  yardim: [
+    "boşalmış bir sınıfın koridorunda",
+    "derneğin kalabalık kayıt masasında",
+    "ziyaret saatinin bittiği koğuşta",
+  ],
+  durustluk: [
+    "adliyenin uzun koridorunda",
+    "karakolun bekleme sırasında",
+    "tutanak masasının başında",
+  ],
+  calisma: [
+    "mesai bitiminde boşalan ofiste",
+    "vardiya değişiminde",
+    "iş çıkışı asansör kuyruğunda",
+  ],
+};
+
+const VARSAYILAN_ORTAM = ["iş yerinde", "mesai biterken", "çalıştığın yerde"];
+
+/** Mesleğin geçtiği yerler — önce profilin kendi listesi, yoksa etiketten türetilir. */
+export function ozellikOrtami(meslek: Ozellik): string[] {
+  if (meslek.ortam?.length) return meslek.ortam;
+  const etiketler = Object.keys(meslek.etkiler ?? {}) as Etiket[];
+  for (const e of etiketler) {
+    if (ORTAMLAR[e]?.length) return ORTAMLAR[e]!;
+  }
+  return VARSAYILAN_ORTAM;
+}
+
 type SozlukGirdi = { anahtarlar: string[]; guclu: Etiket[]; zayif?: Etiket[] };
 
 /** Meslek sözlüğü: anahtar kelimeden etiket eğilimine. */
@@ -526,6 +595,7 @@ export function profilKur(
   notlar: Partial<Record<Etiket, string>> = {},
   tur: "kisilik" | "meslek" = "kisilik",
   kaynak: "yerel" | "ai" = "yerel",
+  ortam?: string[],
 ): Ozellik {
   const temiz = ad.trim().slice(0, 40);
   const gecerliGuclu = guclu.filter((e) => ETIKET_TABAN[e]).slice(0, 3);
@@ -562,7 +632,7 @@ export function profilKur(
     });
   });
 
-  return { ad: temiz, etkiler, fx: baslangic, kaynak };
+  return { ad: temiz, etkiler, fx: baslangic, kaynak, ...(ortam?.length ? { ortam } : {}) };
 }
 
 /** Yapay zekânın seçebileceği etiketler. */

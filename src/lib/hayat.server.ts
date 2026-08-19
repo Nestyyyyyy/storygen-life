@@ -12,8 +12,8 @@
 
 import { askAi } from "./life.server";
 import { EVRE_ADI, HEDEFLER, evreBul } from "./hayat/veri";
-import { iliskiBul } from "./hayat/motor";
-import { ETIKET_LISTESI, profilKur } from "./hayat/profil";
+import { iliskiBul, yetiskinIcerikAcik } from "./hayat/motor";
+import { ETIKET_LISTESI, ozellikOrtami, profilKur } from "./hayat/profil";
 import type { Durum, Etiket, Etki, Olay, Ozellik, Secenek, StatAnahtar } from "./hayat/tipler";
 
 const GECERLI_ETIKETLER: Etiket[] = [
@@ -106,7 +106,18 @@ KURALLAR
 7. Karakterin kişiliğini, meslek eğilimini ve hayat hedefini sahneye SIZDIR; ama etiketlerle çelişme.
 8. Aktif ilişkiler varsa kişileri İSİMLERİYLE kullan (uydurma yeni isim ekleme).
 9. Verilen "kaçınılacak başlıklar" listesindeki konuları ve başlıkları TEKRARLAMA. Her sahne yeni bir konu olsun.
-10. Türkçe yaz. Argo yok, açık cinsellik yok, şiddeti yüceltme yok. Melankoli, mizah ve sıcaklık serbest.`;
+10. Türkçe yaz. Melankoli, mizah ve sıcaklık serbest.
+11. ÇALIŞMA ORTAMI: Karakterin bir mesleği varsa kariyer/para sahnelerini o işin geçtiği yerde kur.
+    Hemşireyse hastane koridorunda, tezgâhtarsa dükkânda, şoförse yolda. Mesleğe yabancı bir sahne yazma.
+12. ZORUNLU SAHNE: "zorunlu": true denirse oyuncunun seçim hakkı YOKTUR. O zaman tek bir seçenek üret,
+    metni olan bitmiş bir şey gibi yaz (kaza, haber, kriz, hastalık, işten çıkarma...), seçeneğin "t" alanı "..." olsun
+    ve "sonuc" alanında olayın oyuncuya ne yaptığını anlat. Oyuncuyu suçlama, bunlar elinde olmayan şeyler.
+13. İÇERİK SINIRI (mod kapalıyken): cinsellik, ağır şiddet, madde/alkol bağımlılığı, kumar batağı gibi
+    yetişkin konularına GİRME. Bu konular yalnızca "+18 modu açık" denildiğinde serbesttir.
+14. +18 MODU AÇIKKEN: yetişkin hayatının sert tarafını yazabilirsin — bağımlılık, ihanet, kumar, kavga,
+    cinsellik, para batağı. Ama şu sınırlar mutlak: açık/pornografik betimleme YOK, cinsellik ima ve sonuç
+    düzeyinde kalır; reşit olmayan hiç kimse bu konuların içinde geçemez; rıza dışı hiçbir şey olumlanamaz;
+    şiddet ve bağımlılık yüceltilmez, bedeliyle anlatılır. Edebi ve ölçülü yaz, ucuzlaştırma.`;
 
 function sayi(v: unknown, alt: number, ust: number) {
   const n = Number(v);
@@ -122,7 +133,7 @@ function metniKirp(v: unknown, uzunluk: number) {
 }
 
 /** Modelden geleni oyunun kabul ettiği şekle sokar; uymayan her şey elenir. */
-function sahneyiTemizle(ham: Record<string, unknown>, durum: Durum): Olay | null {
+function sahneyiTemizle(ham: Record<string, unknown>, durum: Durum, zorunlu = false): Olay | null {
   const evre = evreBul(durum.yas);
   const hamSecenekler = Array.isArray(ham.secenekler) ? ham.secenekler : [];
   const secenekler: Secenek[] = [];
@@ -159,7 +170,10 @@ function sahneyiTemizle(ham: Record<string, unknown>, durum: Durum): Olay | null
     secenekler.push(secenek);
   }
 
-  if (secenekler.length < 2) return null;
+  if (zorunlu) {
+    if (!secenekler.length) return null;
+    secenekler.splice(1); // zorunlu sahnede tek seçenek kalır
+  } else if (secenekler.length < 2) return null;
 
   const baslik = metniKirp(ham.baslik, 40) || "Bir Gün";
   const metin = metniKirp(ham.metin, 400);
@@ -176,19 +190,39 @@ function sahneyiTemizle(ham: Record<string, unknown>, durum: Durum): Olay | null
     baslik,
     metin,
     secenekler,
+    ...(zorunlu ? { zorunlu: true } : {}),
+    ...(yetiskinIcerikAcik(durum) ? { yetiskin: true } : {}),
     uretilmis: true,
     yapayZeka: true,
   };
 }
 
 /** Yapay zekâdan bir sahne ister. Başarısız olursa null döner, çağıran yerel motora düşer. */
-export async function aiSahneUret(durum: Durum, kacinilan: string[]): Promise<Olay | null> {
+export async function aiSahneUret(
+  durum: Durum,
+  kacinilan: string[],
+  secenekler: { zorunlu?: boolean } = {},
+): Promise<Olay | null> {
   const evre = evreBul(durum.yas);
   const partner = iliskiBul(durum.iliskiler, "partner");
+  const yetiskin = yetiskinIcerikAcik(durum);
+  const isYerleri = ozellikOrtami(durum.karakter.meslek);
+  const calisiyor = durum.yas >= 16 && !/belirsiz/i.test(durum.karakter.meslek.ad);
+
   const user = `${karakterOzeti(durum)}
 
 YAŞ BANDI ÇERÇEVESİ — buna birebir uy:
 ${EVRE_CERCEVESI[evre]}
+
+${
+  calisiyor
+    ? `ÇALIŞMA ORTAMI: "${durum.karakter.meslek.ad}". Bu işin geçtiği yerler: ${isYerleri.join(" / ")}.
+Sahne iş, para ya da gündelik düzenle ilgiliyse buralardan birinde geçsin.`
+    : "Not: Henüz çalışmıyor; iş yeri sahnesi kurma."
+}
+
++18 modu: ${yetiskin ? "AÇIK — 14. kuraldaki sınırlar içinde yetişkin konuları serbest." : "KAPALI — 13. kurala uy, yetişkin konularına girme."}
+${secenekler.zorunlu ? "BU SAHNE ZORUNLU: 12. kurala göre tek seçenekli, olan bitmiş bir olay yaz." : ""}
 
 Kaçınılacak başlıklar (bunları ve benzer konuları tekrar etme): ${kacinilan.slice(0, 18).join(" | ") || "yok"}
 ${partner ? `Not: ${partner.ad} ile ilişkisi sürüyor; sahne bu kişiyi anabilir.` : ""}
@@ -198,7 +232,7 @@ Bu karakter için ${durum.yas} yaşına uygun tek bir sahne yaz.`;
 
   try {
     const ham = await askAi(SAHNE_SISTEM, user, 1.1, ["metin", "secenekler"]);
-    return sahneyiTemizle(ham, durum);
+    return sahneyiTemizle(ham, durum, !!secenekler.zorunlu);
   } catch (err) {
     console.error("[aiSahneUret]", err);
     return null;
@@ -261,7 +295,7 @@ const PROFIL_SISTEM = `Sen bir oyun tasarımcısısın. Sana bir karakterin serb
 mesleği ya da kişilik özelliği veriliyor. Bunu oyunun davranış etiketlerine çevireceksin.
 
 SADECE şu JSON'u döndür:
-{"guclu": string[], "zayif": string[], "notlar": {"<etiket>": string}}
+{"guclu": string[], "zayif": string[], "notlar": {"<etiket>": string}, "ortamlar": string[]}
 
 ETİKETLER (sadece bunlar): ${ETIKET_LISTESI.join(", ")}
 
@@ -277,7 +311,9 @@ KURALLAR
 3. "notlar": her etiket için oyun içinde gösterilecek TEK cümle. Türkçe, ikinci tekil şahıs,
    özelliğin adını doğal biçimde geçir. Örn tip için: "Hemşirelik eğilimin burada nabzı tuttu."
    Klişe olmasın, "bu sana yardımcı oldu" gibi boş cümle kurma.
-4. Metin anlamsızsa ya da uydurma bir kelimeyse yine de en yakın etiketleri seç, boş dönme.`;
+4. Metin anlamsızsa ya da uydurma bir kelimeyse yine de en yakın etiketleri seç, boş dönme.
+5. "ortamlar": SADECE meslek çözümlerken doldur — bu işin geçtiği 2-4 yer, Türkçe, bulunma hali ile.
+   Örn hemşire için: ["hastanenin acil koridorunda", "nöbet odasında"]. Kişilik çözümlerken boş dizi ver.`;
 
 /** Serbest metin meslek/kişilik → oyun profili. Başarısız olursa null (yerel sözlük devreye girer). */
 export async function aiProfilCoz(ad: string, tur: "kisilik" | "meslek"): Promise<Ozellik | null> {
@@ -303,7 +339,13 @@ Bu metni etiketlere çevir.`;
       const n = metniKirp(hamNotlar[e], 160);
       if (n) notlar[e] = n;
     });
-    return profilKur(temiz, guclu, zayif, notlar, tur, "ai");
+    // Ortam ifadeleri sahne metnine olduğu gibi giriyor; yarım kalmasın diye
+    // kırpmak yerine fazla uzun olanlar tamamen eleniyor.
+    const ortam = (Array.isArray(ham.ortamlar) ? ham.ortamlar : [])
+      .map((x) => metniKirp(x, 200))
+      .filter((x) => x.length > 3 && x.length <= 60)
+      .slice(0, 4);
+    return profilKur(temiz, guclu, zayif, notlar, tur, "ai", tur === "meslek" ? ortam : undefined);
   } catch (err) {
     console.error("[aiProfilCoz]", err);
     return null;
@@ -372,6 +414,89 @@ Tohum: ${Math.random().toString(36).slice(2, 8)}`;
     return deger;
   } catch (err) {
     console.error("[aiAlanOner]", err);
+    return null;
+  }
+}
+
+/* ---------- Oyuncunun kendi cevabı ----------
+   Seçeneklerden birini seçmek yerine ne yapacağını kendi yazabiliyor.
+   Model bunun sahnede ne anlama geldiğine karar veriyor; sayılar yine
+   sınırlanıyor, uçuk sonuçlar kırpılıyor. */
+
+const SERBEST_SISTEM = `Sen "Hayat Simülatörü" oyununun anlatıcısısın. Oyuncu, önüne konan seçenekleri
+kullanmak yerine NE YAPACAĞINI kendi cümleleriyle yazdı. Bunun sonucunu yazacaksın.
+
+SADECE şu JSON'u döndür:
+{"etiketler": string[], "fx": {"saglik"?: number, "mutluluk"?: number, "ask"?: number, "arkadaslik"?: number, "kariyer"?: number},
+ "para"?: number, "sonuc": string, "mumkun": boolean}
+
+KURALLAR
+1. "mumkun": Oyuncunun yazdığı şey o sahnede, o yaşta, o imkânlarla yapılabilir mi? Yapılamazsa false
+   ver ve "sonuc" alanında denemenin nasıl tutmadığını anlat (alay etme, gerçekçi ol).
+   7 yaşındaki biri şirket kuramaz, parası olmayan biri villa alamaz, ölmüş biri geri gelmez.
+2. "sonuc": 2-4 cümle, ikinci tekil şahıs, oyuncunun yaptığı şeyin DEVAMI. Yazdığı cümleyi aynen tekrarlama.
+   Sonuç her zaman oyuncunun istediği gibi bitmek zorunda değil; hayat direnir.
+3. "etiketler" sadece şu sözlükten, 1-3 tane: ${ETIKET_LISTESI.join(", ")}.
+4. "fx" değerleri -15 ile +15 arası, dengeli olsun. "para" -60000 ile +60000 arası.
+   Bedava kazanç yok: kazandıran bir eylem başka bir yerden götürsün.
+5. Oyuncu kuralları zorlamaya çalışıyorsa (sınırsız para, ölümsüzlük, herkesi öldürmek) "mumkun": false ver.
+6. Türkçe yaz. +18 modu kapalıysa cinsellik, ağır şiddet ve bağımlılık konularına girme;
+   açıksa ölçülü ve edebi kal, açık/pornografik betimleme yapma, reşit olmayan kimseyi bu konulara sokma.`;
+
+/** Oyuncunun yazdığı eylemi oynanabilir bir seçeneğe çevirir. */
+export async function aiSerbestCevap(
+  metin: string,
+  olay: Olay,
+  durum: Durum,
+): Promise<Secenek | null> {
+  const temiz = metniKirp(metin, 140);
+  if (!temiz) return null;
+  const yetiskin = yetiskinIcerikAcik(durum);
+
+  const user = `${karakterOzeti(durum)}
+
+Sahne: ${olay.baslik}
+${olay.metin}
+
+Hazır seçenekler (oyuncu bunları KULLANMADI):
+${olay.secenekler.map((sc, i) => `${i}) ${sc.t}`).join("\n")}
+
++18 modu: ${yetiskin ? "AÇIK (ölçülü kal)" : "KAPALI"}
+
+Oyuncunun yazdığı: "${temiz}"
+
+Bunun sonucunu yaz.`;
+
+  try {
+    const ham = await askAi(SERBEST_SISTEM, user, 0.9, ["sonuc"]);
+    const sonuc = metniKirp(ham.sonuc, 600);
+    if (sonuc.length < 25) return null;
+
+    const etiketler = (Array.isArray(ham.etiketler) ? ham.etiketler : [])
+      .map((e) => String(e).trim())
+      .filter((e): e is Etiket => (ETIKET_LISTESI as string[]).includes(e))
+      .slice(0, 3);
+
+    const fx: Etki = {};
+    const hamFx = (ham.fx ?? {}) as Record<string, unknown>;
+    STAT_ANAHTAR.forEach((k) => {
+      if (hamFx[k] !== undefined) {
+        const d = sayi(hamFx[k], -15, 15);
+        if (d !== 0) fx[k] = d;
+      }
+    });
+
+    const secenek: Secenek = {
+      t: temiz,
+      etiketler: etiketler.length ? etiketler : (["kesif"] as Etiket[]),
+      fx,
+      sonuc,
+    };
+    const para = sayi(ham.para ?? 0, -60000, 60000);
+    if (para !== 0) secenek.para = para;
+    return secenek;
+  } catch (err) {
+    console.error("[aiSerbestCevap]", err);
     return null;
   }
 }

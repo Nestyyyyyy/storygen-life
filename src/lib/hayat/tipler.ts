@@ -56,6 +56,8 @@ export type Ozellik = {
   etkiler: Partial<Record<Etiket, { fx: Etki; paraCarpan?: number; not: string }>>;
   /** Oyuna başlarken statlara bir kerelik etki. */
   fx?: Etki;
+  /** Bu işin geçtiği yerler — kariyer/para sahneleri buralarda kurulur. */
+  ortam?: string[];
   /** Profili kim çıkardı: yerel sözlük mü, yapay zekâ mı? */
   kaynak?: "yerel" | "ai";
 };
@@ -111,6 +113,10 @@ export type Olay = {
   };
   tekSefer?: boolean;
   agirlik?: number;
+  /** Seçim hakkı yok: olan olmuş, oyuncu sadece okuyup devam eder. */
+  zorunlu?: boolean;
+  /** Sadece +18 modunda ve karakter reşitken çıkar. */
+  yetiskin?: boolean;
   /** Sahne prosedürel üreteçten mi geldi? İstatistik ve tekrar kontrolü için. */
   uretilmis?: boolean;
   /** Yapay zekâ ürettiyse işaretlenir. */

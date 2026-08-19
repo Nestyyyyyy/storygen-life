@@ -19,6 +19,7 @@ import {
   MessageSquarePlus,
   Plus,
   RotateCcw,
+  Send,
   Smile,
   Sparkles,
   Users,
@@ -51,6 +52,7 @@ import {
   metinDoldur,
   olaySec,
   omurHesapla,
+  serbestSecenek,
   oneriHesapla,
   paraFmt,
   secimiHesapla,
@@ -135,6 +137,13 @@ export type IsimOneriSaglayici = (girdi: {
   kacinilan: string[];
 }) => Promise<{ deger: string; kaynak: "ai" | "yerel" }>;
 
+/** Oyuncunun kendi yazdığı cevabı değerlendiren sağlayıcı. */
+export type SerbestCevapSaglayici = (girdi: {
+  durum: Durum;
+  olay: Olay;
+  metin: string;
+}) => Promise<{ secenek: Secenek; motor: "ai" | "yerel" }>;
+
 /** Serbest metni oyun profiline çeviren sağlayıcı. */
 export type ProfilSaglayici = (girdi: {
   ad: string;
@@ -147,6 +156,7 @@ type Props = {
   alanOneriSaglayici?: AlanOneriSaglayici;
   isimOneriSaglayici?: IsimOneriSaglayici;
   profilSaglayici?: ProfilSaglayici;
+  serbestCevapSaglayici?: SerbestCevapSaglayici;
 };
 
 type GunlukKayit = {
@@ -172,6 +182,7 @@ export default function HayatOyunu({
   alanOneriSaglayici,
   isimOneriSaglayici,
   profilSaglayici,
+  serbestCevapSaglayici,
 }: Props) {
   /* ---- ekran ---- */
   const [ekran, setEkran] = useState<"olustur" | "oyun" | "bitis">("olustur");
@@ -200,6 +211,8 @@ export default function HayatOyunu({
   const [yukleniyor, setYukleniyor] = useState(false);
   const [oneri, setOneri] = useState<Oneri | null>(null);
   const [oneriYukleniyor, setOneriYukleniyor] = useState(false);
+  const [kendiCevap, setKendiCevap] = useState("");
+  const [kendiCevapYukleniyor, setKendiCevapYukleniyor] = useState(false);
   const sonKaliplar = useRef<string[]>([]);
   const gecenBasliklar = useRef<string[]>([]);
 
@@ -430,6 +443,26 @@ export default function HayatOyunu({
       setOneri(oneriHesapla(olay, durum));
     } finally {
       setOneriYukleniyor(false);
+    }
+  }
+
+  /* ---- oyuncunun kendi cevabı ---- */
+  async function kendiCevabiGonder() {
+    const metin = kendiCevap.trim();
+    if (!durum || !olay || !metin || kendiCevapYukleniyor) return;
+    setKendiCevapYukleniyor(true);
+    try {
+      if (serbestCevapSaglayici) {
+        const yanit = await serbestCevapSaglayici({ durum, olay, metin });
+        sec(yanit.secenek);
+        return;
+      }
+      sec(serbestSecenek(metin, durum));
+    } catch (err) {
+      console.error("[kendiCevap]", err);
+      sec(serbestSecenek(metin, durum));
+    } finally {
+      setKendiCevapYukleniyor(false);
     }
   }
 
@@ -761,6 +794,14 @@ export default function HayatOyunu({
                     >
                       {m.aciklama}
                     </span>
+                    {"yetiskinIcerik" in m && (
+                      <span
+                        style={{ display: "block", fontSize: 11.5, color: "#ff9090", marginTop: 4 }}
+                      >
+                        Yetişkin içerik yalnızca bu modda ve karakter 18 yaşını geçtikten sonra
+                        açılır.
+                      </span>
+                    )}
                   </span>
                   <ChevronRight size={18} color={C.muted} />
                 </button>
@@ -935,21 +976,17 @@ export default function HayatOyunu({
               }}
             >
               <div style={{ fontSize: 34, marginBottom: 6 }}>{olay.emoji}</div>
-              {motor === "ai" && (
-                <span
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    fontSize: 10.5,
-                    letterSpacing: 1,
-                    textTransform: "uppercase",
-                    color: C.sky,
-                  }}
-                >
-                  <Sparkles size={12} /> yapay zekâ
-                </span>
-              )}
+              <div
+                style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3 }}
+              >
+                {motor === "ai" && (
+                  <span style={rozetYaziStyle(C.sky)}>
+                    <Sparkles size={12} /> yapay zekâ
+                  </span>
+                )}
+                {olay.yetiskin && <span style={rozetYaziStyle("#ff9090")}>🔞 +18</span>}
+                {olay.zorunlu && <span style={rozetYaziStyle(C.muted)}>elinde değil</span>}
+              </div>
             </div>
             <div
               style={{
@@ -974,101 +1011,136 @@ export default function HayatOyunu({
               {metinDoldur(olay.metin, durum)}
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-              {olay.secenekler.map((sc, i) => {
-                const onerilen = oneri?.indeks === i;
-                return (
-                  <button
-                    key={i}
-                    onClick={() => sec(sc)}
-                    style={{
-                      ...secenekStyle,
-                      border: `1px solid ${onerilen ? C.gold : C.cardEdge}`,
-                      background: onerilen ? "#f5b94214" : "#00000022",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                    }}
-                  >
-                    <span style={{ flex: 1 }}>
-                      {sc.t}
-                      {sc.riskli ? (
-                        <span style={{ color: C.gold, fontSize: 12 }}> · riskli</span>
-                      ) : null}
-                    </span>
-                    {onerilen && (
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 3,
-                          fontSize: 10.5,
-                          fontWeight: 700,
-                          letterSpacing: 1,
-                          textTransform: "uppercase",
-                          color: C.gold,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        <Lightbulb size={12} /> önerilen
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Öner düğmesi ve gerekçesi */}
-            {oneri ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  background: "#f5b9420f",
-                  border: `1px solid ${C.gold}33`,
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 5,
-                    fontSize: 10.5,
-                    letterSpacing: 1.5,
-                    textTransform: "uppercase",
-                    color: C.gold,
-                    marginBottom: 4,
-                  }}
-                >
-                  <Lightbulb size={12} /> akıl hocası {oneri.kaynak === "ai" ? "· yapay zekâ" : ""}
-                </div>
-                <div style={{ fontSize: 13, color: C.cream, lineHeight: 1.5 }}>{oneri.gerekce}</div>
-              </div>
-            ) : (
+            {olay.zorunlu ? (
+              /* Seçim hakkı yok: olan olmuş, oyuncu sadece devam eder. */
               <button
-                onClick={oneriIste}
-                disabled={oneriYukleniyor}
+                onClick={() => sec(olay.secenekler[0])}
                 style={{
                   ...secenekStyle,
-                  marginTop: 12,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 7,
-                  color: C.gold,
-                  background: "transparent",
-                  borderStyle: "dashed",
-                  fontSize: 13.5,
+                  background: C.gold,
+                  color: "#2b1d00",
+                  fontWeight: 700,
+                  borderColor: C.gold,
+                  textAlign: "center",
                 }}
               >
-                {oneriYukleniyor ? (
-                  <Loader2 size={15} style={{ animation: "hs-spin 1s linear infinite" }} />
-                ) : (
-                  <Lightbulb size={15} />
-                )}
-                {oneriYukleniyor ? "Düşünüyor..." : "Öner"}
+                Öyle oldu →
               </button>
+            ) : (
+              <>
+                <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                  {olay.secenekler.map((sc, i) => {
+                    const onerilen = oneri?.indeks === i;
+                    return (
+                      <button
+                        key={i}
+                        onClick={() => sec(sc)}
+                        style={{
+                          ...secenekStyle,
+                          border: `1px solid ${onerilen ? C.gold : C.cardEdge}`,
+                          background: onerilen ? "#f5b94214" : "#00000022",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <span style={{ flex: 1 }}>
+                          {sc.t}
+                          {sc.riskli ? (
+                            <span style={{ color: C.gold, fontSize: 12 }}> · riskli</span>
+                          ) : null}
+                        </span>
+                        {onerilen && (
+                          <span style={{ ...rozetYaziStyle(C.gold), fontWeight: 700 }}>
+                            <Lightbulb size={12} /> önerilen
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Oyuncunun kendi cevabı */}
+                <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                  <input
+                    value={kendiCevap}
+                    onChange={(e) => setKendiCevap(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        void kendiCevabiGonder();
+                      }
+                    }}
+                    placeholder="Ya da kendi cevabını yaz..."
+                    maxLength={140}
+                    style={{ ...inputStyle, flex: 1, fontSize: 14.5, padding: "12px 14px" }}
+                  />
+                  <button
+                    onClick={() => void kendiCevabiGonder()}
+                    disabled={!kendiCevap.trim() || kendiCevapYukleniyor}
+                    aria-label="Kendi cevabını gönder"
+                    style={{
+                      ...secenekStyle,
+                      width: "auto",
+                      padding: "0 15px",
+                      display: "flex",
+                      alignItems: "center",
+                      color: kendiCevap.trim() ? C.gold : C.muted,
+                      borderColor: kendiCevap.trim() ? C.gold : C.cardEdge,
+                    }}
+                  >
+                    {kendiCevapYukleniyor ? (
+                      <Loader2 size={16} style={{ animation: "hs-spin 1s linear infinite" }} />
+                    ) : (
+                      <Send size={16} />
+                    )}
+                  </button>
+                </div>
+
+                {oneri ? (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: "10px 12px",
+                      borderRadius: 12,
+                      background: "#f5b9420f",
+                      border: `1px solid ${C.gold}33`,
+                    }}
+                  >
+                    <div style={{ ...rozetYaziStyle(C.gold), marginBottom: 4 }}>
+                      <Lightbulb size={12} /> akıl hocası{" "}
+                      {oneri.kaynak === "ai" ? "· yapay zekâ" : ""}
+                    </div>
+                    <div style={{ fontSize: 13, color: C.cream, lineHeight: 1.5 }}>
+                      {oneri.gerekce}
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={oneriIste}
+                    disabled={oneriYukleniyor}
+                    style={{
+                      ...secenekStyle,
+                      marginTop: 10,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 7,
+                      color: C.gold,
+                      background: "transparent",
+                      borderStyle: "dashed",
+                      fontSize: 13.5,
+                    }}
+                  >
+                    {oneriYukleniyor ? (
+                      <Loader2 size={15} style={{ animation: "hs-spin 1s linear infinite" }} />
+                    ) : (
+                      <Lightbulb size={15} />
+                    )}
+                    {oneriYukleniyor ? "Düşünüyor..." : "Öner"}
+                  </button>
+                )}
+              </>
             )}
           </div>
         ) : sonuc ? (
@@ -1857,3 +1929,15 @@ const etiketStyle: React.CSSProperties = {
   display: "block",
   marginBottom: 6,
 };
+
+/** Kart üstündeki küçük durum yazıları (yapay zekâ, +18, önerilen...). */
+const rozetYaziStyle = (renk: string): React.CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: 4,
+  fontSize: 10.5,
+  letterSpacing: 1,
+  textTransform: "uppercase",
+  color: renk,
+  whiteSpace: "nowrap",
+});

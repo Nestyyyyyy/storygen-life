@@ -1911,4 +1911,196 @@ export const OLAYLAR: Olay[] = [
       },
     ],
   },
+  /* ================= +18 MOD OLAYLARI =================
+     Yalnızca "+18 Mod" seçiliyken ve karakter 18 yaşını geçtikten sonra
+     havuza girer. Ağır konular sonuçlarıyla anlatılır, açık sahne yoktur. */
+  {
+    id: "y18a",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "saglik",
+    emoji: "💊",
+    baslik: "Küçük Bir Şey",
+    yetiskin: true,
+    metin:
+      "Uzun bir dönemin ortasındasın ve biri sana 'bunu al, rahatlarsın' diyor. Sadece bu geceliğine.",
+    secenekler: [
+      {
+        t: "Al, bir kereden bir şey olmaz",
+        etiketler: ["risk", "kacinma"],
+        fx: { mutluluk: 9, saglik: -10 },
+        sonuc:
+          "O gece gerçekten rahatladın; yıllardır omzunda duran şey birkaç saatliğine indi. Sorun sabah geri geldiğinde nereye bakacağını biliyor olmandı. Bir kere bir kez kalmadı.",
+        bayrak: ["bagimlilik"],
+        onemli: true,
+      },
+      {
+        t: "Reddet, kalk git",
+        etiketler: ["durustluk", "guvenli"],
+        fx: { saglik: 6, mutluluk: -4, arkadaslik: -4 },
+        sonuc:
+          '"Bana uymaz" deyip kalktın. Arkandan bir şeyler söylendi ve o çevreden yavaşça koptun. Aylar sonra aynı masadan birinin haberini duyduğunda kalktığın o geceyi hatırladın.',
+      },
+      {
+        t: "Derdini birine anlat",
+        etiketler: ["sosyal", "durustluk"],
+        fx: { mutluluk: 7, arkadaslik: 7, saglik: 3 },
+        sonuc:
+          "Almak yerine konuştun. Anlatırken sesin iki kez kırıldı ve karşındaki hiç sözünü kesmedi. Çözülmedi ama en azından tek başına taşımıyordun.",
+      },
+    ],
+  },
+  {
+    id: "y18b",
+    evreler: ["gencYetiskin", "yetiskin", "orta"],
+    alan: "saglik",
+    emoji: "🕳️",
+    baslik: "Dip",
+    yetiskin: true,
+    gerek: { bayrak: ["bagimlilik"], yokBayrak: ["temizlendi"] },
+    tekSefer: true,
+    agirlik: 5,
+    metin:
+      "Aylar geçti ve artık kimse 'bu geceliğine' demiyor. Bu sabah aynada tanımadığın biri vardı.",
+    secenekler: [
+      {
+        t: "Yardım iste, tedaviye başla",
+        etiketler: ["durustluk", "tip", "cesaret"],
+        fx: { saglik: 14, mutluluk: 6, kariyer: -4, arkadaslik: 5 },
+        para: -30000,
+        sonuc:
+          "Telefonu açıp bir numara aramak, hayatında yaptığın en zor şeydi. İlk haftalar cehennemdi; üçüncü ayda bir sabah pencereyi açtın ve havanın kokusunu aldığını fark ettin. Kimse madalya vermedi, gerek de yoktu.",
+        bayrak: ["temizlendi"],
+        onemli: true,
+      },
+      {
+        t: "İdare ediyorum de",
+        etiketler: ["kacinma", "hile"],
+        fx: { saglik: -16, mutluluk: -10, arkadaslik: -9, kariyer: -6 },
+        para: -20000,
+        sonuc:
+          "Kontrolün sende olduğunu söyledin, hem de inandırıcı biçimde. O yılın çoğunu hatırlamıyorsun; hatırlayanlar ise seninle konuşmayı bıraktı.",
+        onemli: true,
+      },
+    ],
+  },
+  {
+    id: "y18c",
+    evreler: ["gencYetiskin", "yetiskin"],
+    alan: "para",
+    emoji: "🚗",
+    baslik: "Arabadaki Adamlar",
+    yetiskin: true,
+    gerek: { bayrak: ["borc"], yokBayrak: ["borcOdendi"] },
+    tekSefer: true,
+    agirlik: 4,
+    metin:
+      "Apartmanın önünde bekleyen araba üç gündür aynı. Bu akşam camı indirip adını söylediler.",
+    secenekler: [
+      {
+        t: "Yüzleş, konuş",
+        etiketler: ["cesaret", "durustluk"],
+        fx: { saglik: -8, mutluluk: -4, kariyer: 2 },
+        para: -35000,
+        sonuc:
+          "Arabaya doğru yürüdün, bacakların titriyordu ama yürüdün. Bir takvim, bir rakam ve bir uyarı üzerinde anlaştınız. Ödediğin her taksitte o gecenin soğuğunu hatırladın.",
+        bayrak: ["borcOdendi"],
+        onemli: true,
+      },
+      {
+        t: "Polise git",
+        etiketler: ["durustluk", "guvenli"],
+        fx: { saglik: -3, mutluluk: -6, arkadaslik: -5 },
+        sonuc:
+          "İfade verdin, tutanak tutuldu ve araba bir daha görünmedi. Ama borç durduğu yerde durdu ve mahallede sana bakış değişti.",
+      },
+      {
+        t: "Kapıyı açma, sakla",
+        etiketler: ["kacinma", "hile"],
+        fx: { saglik: -6, mutluluk: -11, arkadaslik: -6 },
+        sonuc:
+          "Işıkları kapattın ve perdenin arkasından izledin. O gece bir şey olmadı; sonraki haftalarda her araba sesinde kalbin durdu. Korku, borçtan daha pahalıya geldi.",
+        bayrak: ["kacak"],
+      },
+    ],
+  },
+  {
+    id: "y18d",
+    evreler: ["gencYetiskin", "yetiskin", "orta"],
+    alan: "ask",
+    emoji: "🚩",
+    baslik: "Sınır",
+    yetiskin: true,
+    metin:
+      "Yakın olduğun biri, senin rahat olmadığın bir şeyde ısrar ediyor. 'Herkes yapıyor' diyor.",
+    secenekler: [
+      {
+        t: "Hayır de, net ol",
+        etiketler: ["durustluk", "cesaret"],
+        fx: { mutluluk: 7, ask: -3, saglik: 4, arkadaslik: 2 },
+        sonuc:
+          '"Ben istemiyorum" dedin ve açıklama yapmadın; gerekmiyordu da. Ortam soğudu, ilişki belki bozuldu ama kendi sınırını kendin çizdin. Bunu bir daha hiç sorgulamadın.',
+        onemli: true,
+      },
+      {
+        t: "Uy, sorun çıkmasın",
+        etiketler: ["kacinma", "sadakat"],
+        fx: { mutluluk: -12, ask: 2, saglik: -5 },
+        sonuc:
+          "İstemediğin halde evet dedin, çünkü hayır demek daha zor göründü. Sonrasında kendine kızdığın kısmı kimseye anlatmadın. O 'evet' uzun süre üstünde kaldı.",
+      },
+      {
+        t: "Konuşarak orta yol bul",
+        etiketler: ["sosyal", "durustluk"],
+        fx: { ask: 6, mutluluk: 5, arkadaslik: 3 },
+        sonuc:
+          "Kestirip atmak yerine neden rahatsız olduğunu anlattın. Karşındaki önce savundu, sonra dinledi. Bir sınır çizildi ve ilişki o sınırla birlikte devam etti.",
+      },
+    ],
+  },
+
+  /* ================= SEÇİM HAKKI OLMAYAN OLAYLAR ================= */
+  {
+    id: "zr1",
+    evreler: ["cocuk", "genc"],
+    alan: "aile",
+    emoji: "🧳",
+    baslik: "Ayrılık",
+    zorunlu: true,
+    tekSefer: true,
+    metin:
+      "Evde uzun süredir sessiz süren şey bir gün açıklandı: artık ayrı evler olacak. Kimse sana ne istediğini sormadı.",
+    secenekler: [
+      {
+        t: "...",
+        etiketler: ["kacinma"],
+        fx: { mutluluk: -13, arkadaslik: -3, saglik: -3, kariyer: -3 },
+        sonuc:
+          "Eşyaların ikiye bölündü, hafta sonların bir takvime bağlandı. Uzun süre iki evde de misafir gibi hissettin. Kimseyi suçlayamadın, en çok da bu zor geldi.",
+        bayrak: ["ailedeAyrilik"],
+        onemli: true,
+      },
+    ],
+  },
+  {
+    id: "zr2",
+    evreler: ["yetiskin", "orta"],
+    alan: "hayat",
+    emoji: "🕊️",
+    baslik: "Bir Telefon",
+    zorunlu: true,
+    tekSefer: true,
+    metin:
+      "Gecenin bir vakti telefon çaldı ve ekrandaki isim bu saatte aramaz. Cümlenin yarısında ne olduğunu anladın.",
+    secenekler: [
+      {
+        t: "...",
+        etiketler: ["yalniz"],
+        fx: { mutluluk: -15, saglik: -6, arkadaslik: 4 },
+        para: -12000,
+        sonuc:
+          "Sonraki üç gün otomatik pilotta geçti: telefonlar, kalabalık, ikram edilen çay. Asıl ağırlık herkes gittikten sonra, ev sessizleşince çöktü. Uzun süre bir alışkanlığın yarısı boşta kaldı.",
+        onemli: true,
+      },
+    ],
+  },
 ];

@@ -53,6 +53,15 @@ export const MODES = [
     para: 3000,
   },
   {
+    key: "yetiskin18",
+    ad: "+18 Mod",
+    emoji: "🔞",
+    aciklama: "Yetişkin hayatının sert tarafı: bağımlılık, ihanet, kumar, şiddet. Sadece bu modda.",
+    start: { saglik: 70, mutluluk: 55, ask: 35, arkadaslik: 45, kariyer: 25 },
+    para: 4000,
+    yetiskinIcerik: true,
+  },
+  {
     key: "kaos",
     ad: "Kaos Modu",
     emoji: "🌪️",

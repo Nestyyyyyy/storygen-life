@@ -7,8 +7,16 @@ import HayatOyunu, {
   type OneriSaglayici,
   type ProfilSaglayici,
   type SahneSaglayici,
+  type SerbestCevapSaglayici,
 } from "@/components/HayatOyunu";
-import { alanOner, isimOner, oneriGetir, profilCoz, sahneGetir } from "@/lib/hayat.functions";
+import {
+  alanOner,
+  isimOner,
+  oneriGetir,
+  profilCoz,
+  sahneGetir,
+  serbestCevap,
+} from "@/lib/hayat.functions";
 
 export const Route = createFileRoute("/hayat")({
   head: () => ({
@@ -74,6 +82,24 @@ function HayatSayfasi() {
     [],
   );
 
+  const serbestCevapSaglayici = useCallback<SerbestCevapSaglayici>(
+    ({ durum, olay, metin }) =>
+      serbestCevap({
+        data: {
+          durum,
+          olay: {
+            id: olay.id,
+            baslik: olay.baslik,
+            metin: olay.metin,
+            secenekler: olay.secenekler,
+          },
+          metin,
+          yapayZeka: true,
+        },
+      }),
+    [],
+  );
+
   return (
     <HayatOyunu
       sahneSaglayici={sahneSaglayici}
@@ -81,6 +107,7 @@ function HayatSayfasi() {
       alanOneriSaglayici={alanOneriSaglayici}
       isimOneriSaglayici={isimOneriSaglayici}
       profilSaglayici={profilSaglayici}
+      serbestCevapSaglayici={serbestCevapSaglayici}
     />
   );
 }

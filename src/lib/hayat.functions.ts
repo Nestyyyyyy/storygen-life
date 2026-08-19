@@ -5,11 +5,18 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { aiAlanOner, aiIsimOner, aiOneri, aiProfilCoz, aiSahneUret } from "./hayat.server";
-import { olaySec, oneriHesapla, type Oneri } from "./hayat/motor";
+import {
+  aiAlanOner,
+  aiIsimOner,
+  aiOneri,
+  aiProfilCoz,
+  aiSahneUret,
+  aiSerbestCevap,
+} from "./hayat.server";
+import { olaySec, oneriHesapla, serbestSecenek, type Oneri } from "./hayat/motor";
 import { yerelOneri, yerelOzellik } from "./hayat/profil";
 import { ISIMLER } from "./hayat/veri";
-import type { Durum, Olay, Ozellik } from "./hayat/tipler";
+import type { Durum, Olay, Ozellik, Secenek } from "./hayat/tipler";
 
 const StatlarSchema = z.object({
   saglik: z.number(),
@@ -74,12 +81,16 @@ const SahneGirdi = z.object({
 
 export type SahneYanit = { olay: Olay; motor: "ai" | "yerel" };
 
+/** Sahnelerin bir kısmında oyuncunun seçim hakkı yoktur; hayat sormadan yapar. */
+const ZORUNLU_ORANI = 0.16;
+
 export const sahneGetir = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => SahneGirdi.parse(input))
   .handler(async ({ data }): Promise<SahneYanit> => {
     const durum = data.durum as Durum;
     if (data.yapayZeka) {
-      const olay = await aiSahneUret(durum, data.kacinilanBasliklar);
+      const zorunlu = Math.random() < ZORUNLU_ORANI;
+      const olay = await aiSahneUret(durum, data.kacinilanBasliklar, { zorunlu });
       if (olay) return { olay, motor: "ai" };
     }
     return { olay: olaySec(durum, data.sonKaliplar), motor: "yerel" };
@@ -175,4 +186,29 @@ export const profilCoz = createServerFn({ method: "POST" })
     const ai = await aiProfilCoz(data.ad, data.tur === "meslek" ? "meslek" : "kisilik");
     if (ai) return ai;
     return yerelOzellik(data.ad, data.tur === "meslek" ? "meslek" : "kisilik");
+  });
+
+const SerbestCevapGirdi = z.object({
+  durum: DurumSchema,
+  olay: z.object({
+    id: z.string(),
+    baslik: z.string(),
+    metin: z.string(),
+    secenekler: z.array(SecenekSchema).min(1).max(6),
+  }),
+  metin: z.string().min(1).max(140),
+  yapayZeka: z.boolean().default(true),
+});
+
+/** Oyuncunun kendi yazdığı cevabı oynanabilir bir seçeneğe çevirir. */
+export const serbestCevap = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) => SerbestCevapGirdi.parse(input))
+  .handler(async ({ data }): Promise<{ secenek: Secenek; motor: "ai" | "yerel" }> => {
+    const durum = data.durum as Durum;
+    if (data.yapayZeka) {
+      const olay = data.olay as unknown as Olay;
+      const ai = await aiSerbestCevap(data.metin, olay, durum);
+      if (ai) return { secenek: ai, motor: "ai" };
+    }
+    return { secenek: serbestSecenek(data.metin, durum), motor: "yerel" };
   });
