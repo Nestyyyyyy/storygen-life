@@ -43,11 +43,13 @@ import {
   type ZekaSecim,
 } from "@/lib/hayat/zeka-tarayici";
 import {
+  CIHAZ_HAZIRLANIYOR,
   CIHAZ_MODELLERI,
   cihazDestekliMi,
+  cihazIndirildiMi,
   cihazOnIsit,
   cihazSorucu,
-  type YuklemeDurumu,
+  type CihazDurum,
 } from "@/lib/hayat/zeka-cihaz";
 import type { Sorucu } from "@/lib/hayat/zeka";
 import type { Durum } from "@/lib/hayat/tipler";
@@ -88,17 +90,43 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
   );
   const [panelAcik, setPanelAcik] = useState(false);
   const [sonHata, setSonHata] = useState<string | null>(null);
-  const [yukleme, setYukleme] = useState<YuklemeDurumu | null>(null);
+  const [cihazDurum, setCihazDurum] = useState<CihazDurum | null>(null);
   const hataZamani = useRef(0);
+
+  /* Hata bildirimi 12 sn sonra kendiliğinden kapanır. */
+  useEffect(() => {
+    if (!sonHata) return;
+    const z = setTimeout(() => setSonHata(null), 12000);
+    return () => clearTimeout(z);
+  }, [sonHata]);
+
+  /* "Hazır ✓" kartı kısa süre görünüp kaybolur. */
+  useEffect(() => {
+    if (cihazDurum?.asama !== "hazir") return;
+    const z = setTimeout(() => setCihazDurum(null), 2400);
+    return () => clearTimeout(z);
+  }, [cihazDurum]);
+
+  /* Test kancası: sandbox gerçek indirme yapamadığı için testler kart
+     durumlarını buradan sürer. Yalnızca taklit modunda açılır. */
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.__cihazTaklit) {
+      (window as unknown as { __cihazDurumAyarla?: typeof setCihazDurum }).__cihazDurumAyarla =
+        setCihazDurum;
+    }
+  }, []);
 
   /* Cihaz modeli seçiliyse açılışta ısıt: önbellekteyse saniyeler içinde hazır. */
   useEffect(() => {
     if (secim?.tur === "cihaz" && cihazDestekliMi()) {
-      cihazOnIsit(secim.model, (d) => setYukleme(d.oran >= 100 ? null : d));
+      cihazOnIsit(secim.model, setCihazDurum);
     }
   }, [secim]);
 
   const hataBildir = (e: unknown) => {
+    // Model daha hazırlanıyorsa bu bir hata değil: kart zaten ilerlemeyi
+    // gösteriyor, sahne sessizce yerel motordan gelir.
+    if (e instanceof Error && e.message === CIHAZ_HAZIRLANIYOR) return;
     setSonHata(hataMesaji(e));
     hataZamani.current = Date.now();
   };
@@ -109,9 +137,7 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
     if (!secim) return null;
     if (secim.tur === "cihaz" && !cihazDestekliMi()) return null;
     const sorucu: Sorucu =
-      secim.tur === "cihaz"
-        ? cihazSorucu(secim.model, (d) => setYukleme(d.oran >= 100 ? null : d))
-        : tarayiciSorucu(secim.ayar);
+      secim.tur === "cihaz" ? cihazSorucu(secim.model, setCihazDurum) : tarayiciSorucu(secim.ayar);
 
     const sahne: SahneSaglayici = async ({ durum, sonKaliplar, kacinilanBasliklar }) => {
       try {
@@ -196,8 +222,8 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
   const aktif = oyuncuSaglayicilari ?? (sunucuZekaVar ? sunucu : undefined);
   const durumYazisi = oyuncuSaglayicilari
     ? secim!.tur === "cihaz"
-      ? yukleme
-        ? `bizim model · ${yukleme.metin} %${yukleme.oran}`
+      ? cihazDurum && cihazDurum.asama !== "hazir"
+        ? "bizim model hazırlanıyor…"
         : "yapay zekâ açık · bizim model"
       : `yapay zekâ açık · ${ayarUcu((secim as { tur: "anahtar"; ayar: ZekaAyar }).ayar).model}`
     : sunucuZekaVar
@@ -233,7 +259,7 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
         {durumYazisi}
       </button>
 
-      {sonHata && Date.now() - hataZamani.current < 15000 && (
+      {sonHata && (
         <div
           role="alert"
           style={{
@@ -256,6 +282,14 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
         </div>
       )}
 
+      {secim?.tur === "cihaz" && cihazDurum && (
+        <IndirmeKarti
+          durum={cihazDurum}
+          modelAd={CIHAZ_MODELLERI.find((m) => m.id === secim.model)?.ad ?? "Model"}
+          onTekrar={() => cihazOnIsit(secim.model, setCihazDurum)}
+        />
+      )}
+
       <HayatOyunu
         sahneSaglayici={aktif?.sahne}
         oneriSaglayici={aktif?.oneri}
@@ -273,7 +307,7 @@ export default function HayatZeka({ sunucu, sunucuZekaVar = false }: Props) {
             secimKaydet(y);
             setSecim(y);
             setSonHata(null);
-            setYukleme(null);
+            setCihazDurum(null);
             setPanelAcik(false);
           }}
         />
@@ -438,6 +472,11 @@ function AyarPaneli({
                     <div style={{ fontSize: 13, fontWeight: 700 }}>
                       {m.ad}{" "}
                       <span style={{ color: C.solgun, fontWeight: 400 }}>· ~{m.indirmeMB} MB</span>
+                      {cihazIndirildiMi(m.id) && (
+                        <span style={{ color: "#6ee7a0", fontWeight: 600, fontSize: 11.5 }}>
+                          {"  "}✓ indirildi
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontSize: 11.5, color: C.solgun, marginTop: 2, lineHeight: 1.4 }}>
                       {m.aciklama}
@@ -640,6 +679,156 @@ function AyarPaneli({
           }
         </style>
       </div>
+    </div>
+  );
+}
+
+/* ---------- İndirme kartı ----------
+   App Store indirmesi gibi: halka ilerleme, aşama metni, biten indirme
+   kısa bir "Hazır" onayıyla kaybolur. Ekranın altına sabitlenir. */
+
+function IndirmeKarti({
+  durum,
+  modelAd,
+  onTekrar,
+}: {
+  durum: CihazDurum;
+  modelAd: string;
+  onTekrar: () => void;
+}) {
+  const R = 15.5;
+  const CEVRE = 2 * Math.PI * R;
+  const oran = Math.max(0, Math.min(100, durum.oran));
+  const belirsiz = oran <= 0 && durum.asama !== "hazir" && durum.asama !== "hata";
+
+  const baslik =
+    durum.asama === "iniyor"
+      ? `${modelAd} model indiriliyor`
+      : durum.asama === "onbellek"
+        ? "Önbellekten yükleniyor"
+        : durum.asama === "hazirlaniyor"
+          ? "Model hazırlanıyor"
+          : durum.asama === "hazir"
+            ? "Bizim yapay zekâ hazır"
+            : "Model başlatılamadı";
+
+  const alt =
+    durum.asama === "iniyor"
+      ? "Bir kez iner, cihazında kalır · oyun bu sırada oynanabilir"
+      : durum.asama === "onbellek"
+        ? "Daha önce indirildi; saniyeler sürer"
+        : durum.asama === "hazirlaniyor"
+          ? "Son dokunuşlar…"
+          : durum.asama === "hazir"
+            ? "Sahneleri artık cihazındaki model yazacak"
+            : (durum.mesaj ?? "Bilinmeyen hata");
+
+  const renk = durum.asama === "hata" ? C.kirmizi : C.altin;
+
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      style={{
+        position: "fixed",
+        left: "50%",
+        bottom: 14,
+        transform: "translateX(-50%)",
+        zIndex: 45,
+        width: "min(400px, calc(100vw - 24px))",
+        display: "flex",
+        alignItems: "center",
+        gap: 13,
+        padding: "13px 15px",
+        borderRadius: 18,
+        border: `1px solid ${durum.asama === "hata" ? `${C.kirmizi}66` : C.kenar}`,
+        background: "rgba(23, 18, 42, 0.94)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        boxShadow: "0 18px 50px -20px rgba(0,0,0,0.85)",
+        color: C.krem,
+        fontFamily: sans,
+      }}
+    >
+      {/* Halka */}
+      <div style={{ position: "relative", width: 40, height: 40, flexShrink: 0 }}>
+        <svg
+          width="40"
+          height="40"
+          viewBox="0 0 40 40"
+          style={
+            belirsiz
+              ? { animation: "hz-don 1.1s linear infinite" }
+              : { transform: "rotate(-90deg)" }
+          }
+          aria-hidden
+        >
+          <circle cx="20" cy="20" r={R} fill="none" stroke={`${C.kenar}`} strokeWidth="3.5" />
+          <circle
+            cx="20"
+            cy="20"
+            r={R}
+            fill="none"
+            stroke={renk}
+            strokeWidth="3.5"
+            strokeLinecap="round"
+            strokeDasharray={CEVRE}
+            strokeDashoffset={belirsiz ? CEVRE * 0.72 : CEVRE * (1 - oran / 100)}
+            style={belirsiz ? undefined : { transition: "stroke-dashoffset 0.35s ease" }}
+          />
+        </svg>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: durum.asama === "hazir" || durum.asama === "hata" ? 15 : 9.5,
+            fontWeight: 700,
+            color: renk,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {durum.asama === "hazir" ? "✓" : durum.asama === "hata" ? "!" : belirsiz ? "" : `${oran}`}
+        </div>
+      </div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 700, lineHeight: 1.3 }}>{baslik}</div>
+        <div
+          style={{
+            fontSize: 11.5,
+            color: durum.asama === "hata" ? C.kirmizi : C.solgun,
+            lineHeight: 1.4,
+            marginTop: 2,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {alt}
+        </div>
+      </div>
+
+      {durum.asama === "hata" && (
+        <button
+          onClick={onTekrar}
+          style={{
+            flexShrink: 0,
+            padding: "9px 13px",
+            borderRadius: 11,
+            border: `1px solid ${C.altin}`,
+            background: C.altin,
+            color: "#2b1d00",
+            fontSize: 12.5,
+            fontWeight: 700,
+            cursor: "pointer",
+          }}
+        >
+          Tekrar dene
+        </button>
+      )}
+      <style>{"@keyframes hz-don{to{transform:rotate(360deg)}}"}</style>
     </div>
   );
 }
